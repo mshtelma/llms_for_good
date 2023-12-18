@@ -94,6 +94,10 @@ class ScriptArguments:
         default="/dbfs/tmp/ryuta/llm/default",
         metadata={"help": "the path to save the model"},
     )
+    dataset_path: Optional[str] = field(
+        default="/dbfs/tmp/ryuta.yoshimatsu@databricks.com/trl/",
+        metadata={"help": "the path to the training dataset"},
+    )
 
 
 parser = HfArgumentParser(ScriptArguments)
@@ -137,7 +141,7 @@ config = PPOConfig(
 # its own dataset.
 def build_dataset(
     config,
-    dataset_path=dataset_path,
+    dataset_path=script_args.dataset_path,
     input_min_text_length=5,
     input_max_text_length=1500,
 ):
@@ -156,13 +160,13 @@ def build_dataset(
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
-    ds = load_dataset(dataset_path)
+    ds = load_dataset(dataset_path, split="train")
     # ds = ds.select(range(10000))
 
     input_size = LengthSampler(input_min_text_length, input_max_text_length)
 
     def tokenize(sample):
-        prompt = sample["text"]
+        prompt = sample["prompt"]
         sample["input_ids"] = tokenizer.encode(prompt)[: input_size()]
         sample["query"] = tokenizer.decode(sample["input_ids"])
         return sample
@@ -179,7 +183,7 @@ min_input_length = 30
 max_input_length = 40
 dataset = build_dataset(
     config,
-    dataset_path="/dbfs/user/ryuta.yoshimatsu@databricks.com/trl/",
+    dataset_path=script_args.dataset_path,
     input_min_text_length=min_input_length,
     input_max_text_length=max_input_length,
 )
