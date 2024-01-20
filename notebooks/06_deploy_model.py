@@ -191,7 +191,7 @@ import json
 import matplotlib.pyplot as plt
 
 # Replace URL with the end point invocation url you get from Model Seriving page. 
-URL = "https://e2-demo-emea.cloud.databricks.com/serving-endpoints/sdxl-fine-tuned/invocations"
+URL = ""
 DATABRICKS_TOKEN = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
 INPUT_EXAMPLE = pd.DataFrame({"prompt":["A photo of TOK dog in a tea cup"], "num_inference_steps": 25})
 
