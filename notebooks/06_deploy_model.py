@@ -14,6 +14,10 @@
 
 # COMMAND ----------
 
+import mlflow
+mlflow.set_registry_uri('databricks-uc')
+client = mlflow.tracking.MlflowClient()
+
 model_name = 'rlaif.model.vegetarian-llama2-7b'
 model_serving_endpoint_name ='vegetarian-llama2-7b'
 
@@ -43,16 +47,8 @@ tags = sc._jvm.scala.collection.JavaConversions.mapAsJavaMap(java_tags)
 # Lastly, extract the Databricks instance (domain name) from the dictionary
 instance = tags["browserHostName"]
 
-import mlflow
-from mlflow.tracking.client import MlflowClient
-mlflow.set_registry_uri('databricks-uc')
-
-def get_latest_model_version(model_name: str):
-  client = MlflowClient()
-  models = client.get_latest_versions(model_name, stages=["None"])
-  for m in models:
-    new_model_version = m.version
-  return new_model_version
+champion_version = client.get_model_version_by_alias(model_name, "champion")
+model_version = champion_version.version
 
 # COMMAND ----------
 
@@ -68,7 +64,7 @@ my_json = {
   "config": {
    "served_models": [{
      "model_name": model_name,
-     "model_version": f'models:/{model_name}@champion',
+     "model_version": model_version,
      "workload_type": "GPU_LARGE",
      "workload_size": "Small",
      "scale_to_zero_enabled": "false",
@@ -124,7 +120,8 @@ def func_create_endpoint(model_serving_endpoint_name):
           retry = False  
       else:
         print("New config in place now!")
-        retry = False
+        retry = False    
+
   assert re.status_code == 200, f"Expected an HTTP 200 response, received {re.status_code}"
   
 
@@ -136,7 +133,7 @@ def func_delete_model_serving_endpoint(model_serving_endpoint_name):
     raise Exception(f"Request failed with status {response.status_code}, {response.text}")
   else:
     print(model_serving_endpoint_name, "endpoint is deleted!")
-  #return response.json()
+  return response.json()
 
 # COMMAND ----------
 
@@ -151,8 +148,6 @@ func_create_endpoint(model_serving_endpoint_name)
 
 # COMMAND ----------
 
-#GET /api/2.0/serving-endpoints/{name}
-
 import time, mlflow
 
 def wait_for_endpoint():
@@ -165,15 +160,14 @@ def wait_for_endpoint():
         status = response.json().get("state", {}).get("ready", {})
         #print("status",status)
         if status == "READY": print(status); print("-"*80); return
-        else: print(f"Endpoint not ready ({status}), waiting 10 seconds"); time.sleep(30) # Wait 10 seconds
+        else: print(f"Endpoint not ready ({status}), waiting 5 miutes"); time.sleep(300) # Wait 300 seconds
         
 api_url = mlflow.utils.databricks_utils.get_webapp_url()
-#print(api_url)
 
 wait_for_endpoint()
 
 # Give the system just a couple extra seconds to transition
-time.sleep(10)
+time.sleep(300)
 
 # COMMAND ----------
 
@@ -184,6 +178,11 @@ time.sleep(10)
 
 # COMMAND ----------
 
+def prompt(text):
+  return f"""[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {text} [/INST]"""
+
+# COMMAND ----------
+
 import os
 import requests
 import pandas as pd
@@ -191,26 +190,22 @@ import json
 import matplotlib.pyplot as plt
 
 # Replace URL with the end point invocation url you get from Model Seriving page. 
-URL = "https://e2-demo-emea.cloud.databricks.com/serving-endpoints/sdxl-fine-tuned/invocations"
-DATABRICKS_TOKEN = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
-INPUT_EXAMPLE = pd.DataFrame({"prompt":["A photo of TOK dog in a tea cup"], "num_inference_steps": 25})
+endpoint_url = f"https://{instance}/serving-endpoints/{model_serving_endpoint_name}/invocations"
+token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
 
-def score_model(dataset, url=URL, databricks_token=DATABRICKS_TOKEN):
-    headers = {'Authorization': f'Bearer {databricks_token}', 
-               'Content-Type': 'application/json'}
-    ds_dict = {'dataframe_split': dataset.to_dict(orient='split')}
-    data_json = json.dumps(ds_dict, allow_nan=True)
-    response = requests.request(method='POST', headers=headers, url=url, data=data_json)
+def generate_response(text, url=endpoint_url, databricks_token=token):
+    headers = {'Authorization': f'Bearer {databricks_token}', 'Content-Type': 'application/json'}
+    body = {"dataframe_records": [{"prompt": prompt(text)}], "params": {"max_tokens": 250}}
+    data = json.dumps(body)
+    response = requests.request(method='POST', headers=headers, url=url, data=data)
     if response.status_code != 200:
         raise Exception(f'Request failed with status {response.status_code}, {response.text}')
     return response.json()
 
-# scoring the model
-t = score_model(INPUT_EXAMPLE)
+# COMMAND ----------
 
-# visualizing the predictions
-plt.imshow(t['predictions'])
-plt.show()
+question = "Give me recipes for a hot summer evening dinner."
+print(generate_response(prompt)["predictions"][0]["candidates"][0]["text"])
 
 # COMMAND ----------
 
@@ -220,3 +215,7 @@ plt.show()
 # COMMAND ----------
 
 #func_delete_model_serving_endpoint(model_serving_endpoint_name)
+
+# COMMAND ----------
+
+
