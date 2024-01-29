@@ -176,7 +176,3 @@ from pyspark.sql import functions as F
 results = spark.table("rlaif.data.evaluation_results")
 
 display(results)
-
-# COMMAND ----------
-
-display(results.filter(F.col("fine_tuned").isNotNull()))
