@@ -8,6 +8,7 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 from huggingface_hub import notebook_login
+
 notebook_login()
 
 # COMMAND ----------
@@ -23,7 +24,9 @@ base_model_name = "meta-llama/Llama-2-7b-chat-hf"
 output = f"/dbfs/tmp/rlaif/llm/{model_name}-vegetarian-20240113"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = AutoModelForCausalLM.from_pretrained(base_model_name, torch_dtype=torch.bfloat16).to(device)
+model = AutoModelForCausalLM.from_pretrained(
+    base_model_name, torch_dtype=torch.bfloat16
+).to(device)
 model = PeftModel.from_pretrained(model, output)
 model = model.merge_and_unload()
 
@@ -36,7 +39,7 @@ generation_kwargs = {
     "top_k": 0.0,
     "top_p": 1.0,
     "do_sample": True,
-    "pad_token_id": tokenizer.eos_token_id
+    "pad_token_id": tokenizer.eos_token_id,
 }
 
 # COMMAND ----------
@@ -45,8 +48,6 @@ prompt = "[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your
 
 query = tokenizer.encode(prompt, return_tensors="pt").to(device)
 outputs = model.generate(query, **generation_kwargs)
-print(tokenizer.decode(outputs[0])[len(prompt) + 6:])
+print(tokenizer.decode(outputs[0])[len(prompt) + 6 :])
 
 # COMMAND ----------
-
-
