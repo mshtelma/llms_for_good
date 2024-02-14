@@ -1,10 +1,11 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC ## Pre fine-tuned model 
+# MAGIC ## Pre fine-tuned model
 
 # COMMAND ----------
 
 from huggingface_hub import notebook_login
+
 notebook_login()
 
 # COMMAND ----------
@@ -23,7 +24,7 @@ model = AutoModelForCausalLM.from_pretrained(
     torch_dtype=torch.bfloat16,
     trust_remote_code=True,
     use_auth_token=True,
-    ).to(device)
+).to(device)
 
 tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 tokenizer.pad_token = tokenizer.eos_token
@@ -34,31 +35,34 @@ generation_kwargs = {
     "top_p": 1.0,
     "do_sample": True,
     "pad_token_id": tokenizer.eos_token_id,
-    "max_new_tokens": 200
+    "max_new_tokens": 200,
 }
 
 # COMMAND ----------
 
 import pandas as pd
+
 questions = spark.table("rlaif.data.prompts_holdout").toPandas()
 display(questions)
 
 # COMMAND ----------
 
+
 def get_prompt(prompt):
-  return f"[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {question}[/INST]"
+    return f"[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {question}[/INST]"
+
 
 answers = []
 
-for question in list(questions['prompt'].values):
-  prompt = get_prompt(question)
-  query = tokenizer.encode(prompt, return_tensors="pt").to(device)
-  outputs = model.generate(query, **generation_kwargs)
-  answers.append(tokenizer.decode(outputs[0])[len(prompt) + 6:])
+for question in list(questions["prompt"].values):
+    prompt = get_prompt(question)
+    query = tokenizer.encode(prompt, return_tensors="pt").to(device)
+    outputs = model.generate(query, **generation_kwargs)
+    answers.append(tokenizer.decode(outputs[0])[len(prompt) + 6 :])
 
 # COMMAND ----------
 
-answers = pd.DataFrame(answers).rename(columns={0:"pre_finetuning"})
+answers = pd.DataFrame(answers).rename(columns={0: "pre_finetuning"})
 display(answers)
 
 # COMMAND ----------
@@ -74,12 +78,13 @@ df.write.saveAsTable(f"rlaif.data.pre_finetuning")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Post fine-tuned model 
+# MAGIC ## Post fine-tuned model
 
 # COMMAND ----------
 
 import torch
 import gc
+
 gc.collect()
 torch.cuda.empty_cache()
 dbutils.library.restartPython()
@@ -95,6 +100,7 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 from huggingface_hub import notebook_login
+
 notebook_login()
 
 # COMMAND ----------
@@ -110,7 +116,9 @@ base_model_name = "meta-llama/Llama-2-7b-chat-hf"
 output = f"/dbfs/tmp/rlaif/llm/{model_name}-vegetarian-20240113"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = AutoModelForCausalLM.from_pretrained(base_model_name, torch_dtype=torch.bfloat16).to(device)
+model = AutoModelForCausalLM.from_pretrained(
+    base_model_name, torch_dtype=torch.bfloat16
+).to(device)
 model = PeftModel.from_pretrained(model, output)
 model = model.merge_and_unload()
 
@@ -124,30 +132,33 @@ generation_kwargs = {
     "top_p": 1.0,
     "do_sample": True,
     "pad_token_id": tokenizer.eos_token_id,
-    "max_new_tokens": 200
+    "max_new_tokens": 200,
 }
 
 # COMMAND ----------
 
 import pandas as pd
+
 questions = spark.table("rlaif.data.prompts_holdout").toPandas()
 
 # COMMAND ----------
 
+
 def get_prompt(prompt):
-  return f"[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {question}[/INST]"
+    return f"[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {question}[/INST]"
+
 
 answers = []
 
-for question in list(questions['prompt'].values):
-  prompt = get_prompt(question)
-  query = tokenizer.encode(prompt, return_tensors="pt").to(device)
-  outputs = model.generate(query, **generation_kwargs)
-  answers.append(tokenizer.decode(outputs[0])[len(prompt) + 6:])
+for question in list(questions["prompt"].values):
+    prompt = get_prompt(question)
+    query = tokenizer.encode(prompt, return_tensors="pt").to(device)
+    outputs = model.generate(query, **generation_kwargs)
+    answers.append(tokenizer.decode(outputs[0])[len(prompt) + 6 :])
 
 # COMMAND ----------
 
-answers = pd.DataFrame(answers).rename(columns={0:"post_finetuning"})
+answers = pd.DataFrame(answers).rename(columns={0: "post_finetuning"})
 display(answers)
 
 # COMMAND ----------
@@ -172,5 +183,3 @@ df = pd.merge(pre_finetune, post_finetune, on=["prompt"])
 display(df)
 
 # COMMAND ----------
-
-

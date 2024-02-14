@@ -1,5 +1,6 @@
 # Databricks notebook source
 from huggingface_hub import notebook_login
+
 notebook_login()
 
 # COMMAND ----------
@@ -24,7 +25,7 @@ model = AutoModelForCausalLM.from_pretrained(
     torch_dtype=torch.bfloat16,
     trust_remote_code=True,
     use_auth_token=True,
-    ).to(device)
+).to(device)
 
 tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 tokenizer.pad_token = tokenizer.eos_token
@@ -37,7 +38,7 @@ generation_kwargs = {
     "top_p": 1.0,
     "do_sample": True,
     "pad_token_id": tokenizer.eos_token_id,
-    "max_new_tokens": 125
+    "max_new_tokens": 125,
 }
 
 # COMMAND ----------
@@ -46,8 +47,6 @@ prompt = "[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your
 
 query = tokenizer.encode(prompt, return_tensors="pt").to(device)
 outputs = model.generate(query, **generation_kwargs)
-print(tokenizer.decode(outputs[0])[len(prompt) + 6:])
+print(tokenizer.decode(outputs[0])[len(prompt) + 6 :])
 
 # COMMAND ----------
-
-

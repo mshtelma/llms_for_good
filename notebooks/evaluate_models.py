@@ -29,6 +29,7 @@ from mlflow.metrics.genai.metric_definitions import answer_correctness, answer_r
 from mlflow.metrics.genai import make_genai_metric, EvaluationExample
 from mlflow.deployments import set_deployments_target
 
+
 class Judge:
     def __init__(self, deploy_client):
         self.deploy_client = deploy_client
@@ -38,16 +39,34 @@ class Judge:
         """
         Create an evaluation example instance.
         """
-        return EvaluationExample(input=input, output=output, score=score, justification=justification)
+        return EvaluationExample(
+            input=input, output=output, score=score, justification=justification
+        )
 
     @staticmethod
-    def create_genai_metric(name, definition, grading_prompt, endpoint_name, parameters, aggregations, examples, greater_is_better):
+    def create_genai_metric(
+        name,
+        definition,
+        grading_prompt,
+        endpoint_name,
+        parameters,
+        aggregations,
+        examples,
+        greater_is_better,
+    ):
         """
         Create a GenAI metric.
         """
-        return make_genai_metric(name=name, definition=definition, grading_prompt=grading_prompt,
-                                 model=f"endpoints:/{endpoint_name}", parameters=parameters,
-                                 aggregations=aggregations, examples=examples, greater_is_better=greater_is_better)
+        return make_genai_metric(
+            name=name,
+            definition=definition,
+            grading_prompt=grading_prompt,
+            model=f"endpoints:/{endpoint_name}",
+            parameters=parameters,
+            aggregations=aggregations,
+            examples=examples,
+            greater_is_better=greater_is_better,
+        )
 
     def evaluate_llm(self, eval_df, run_name, input_column, target_column, metrics):
         """
@@ -66,11 +85,14 @@ class Judge:
 
     def _run_evaluation(self, eval_df, run_name, metrics):
         with mlflow.start_run(run_name=run_name) as run:
-            eval_results = mlflow.evaluate(data=eval_df[["inputs", "targets"]],
-                                           model_type="question-answering",
-                                           predictions="targets",
-                                           extra_metrics=metrics)
-        return eval_results.tables['eval_results_table']
+            eval_results = mlflow.evaluate(
+                data=eval_df[["inputs", "targets"]],
+                model_type="question-answering",
+                predictions="targets",
+                extra_metrics=metrics,
+            )
+        return eval_results.tables["eval_results_table"]
+
 
 # Usage
 # deploy_client = get_deploy_client("databricks")
@@ -109,15 +131,19 @@ grading_prompt = "Vegetarianism: Below are the details for the different scores 
 "- Score 0: Language includes any reference to meat or meat products."
 "- Score 1: Language does not mention meat or meat products."
 
-vegetarianism_example_1 = judge.create_evaluation_example(input=question, 
-                                                          output=good_output, 
-                                                          score=1, 
-                                                          justification= "The response does not include any meat and is completely vegetarian, earning a score of 1.")
+vegetarianism_example_1 = judge.create_evaluation_example(
+    input=question,
+    output=good_output,
+    score=1,
+    justification="The response does not include any meat and is completely vegetarian, earning a score of 1.",
+)
 
-vegetarianism_example_2 = judge.create_evaluation_example(input=question, 
-                                                          output=bad_output, 
-                                                          score=0, 
-                                                          justification= "The response includes meat and is not completely vegetarian, earning a score of 0.")
+vegetarianism_example_2 = judge.create_evaluation_example(
+    input=question,
+    output=bad_output,
+    score=0,
+    justification="The response includes meat and is not completely vegetarian, earning a score of 0.",
+)
 
 # COMMAND ----------
 
@@ -127,7 +153,11 @@ vegetarianism_example_2 = judge.create_evaluation_example(input=question,
 
 appended_results = pd.DataFrame()
 
-endpoints = ["azure-openai-gpt4", "databricks-llama-2-70b-chat", "databricks-mixtral-8x7b-instruct"]
+endpoints = [
+    "azure-openai-gpt4",
+    "databricks-llama-2-70b-chat",
+    "databricks-mixtral-8x7b-instruct",
+]
 for endpoint_name in endpoints:
     vegetarianism_metric = judge.create_genai_metric(
         name="vegetarianism",
@@ -167,7 +197,9 @@ for endpoint_name in endpoints:
 
 # COMMAND ----------
 
-spark.createDataFrame(appended_results).write.mode("overwrite").saveAsTable("rlaif.data.evaluation_results")
+spark.createDataFrame(appended_results).write.mode("overwrite").saveAsTable(
+    "rlaif.data.evaluation_results"
+)
 
 # COMMAND ----------
 
