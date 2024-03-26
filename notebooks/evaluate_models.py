@@ -21,7 +21,7 @@ display(df)
 
 # COMMAND ----------
 
-# MAGIC %md ### LLM as a Judge wrapper
+# MAGIC %md ### LLM as a Judge wrapper:
 
 # COMMAND ----------
 
@@ -176,3 +176,7 @@ from pyspark.sql import functions as F
 results = spark.table("rlaif.data.evaluation_results")
 
 display(results)
+
+# COMMAND ----------
+
+display(results.filter(F.col("llm_judge")=="azure-openai-gpt4").orderBy("inputs", "fine_tuned"))
