@@ -33,8 +33,8 @@ class ScriptArguments:
         default="/dbfs/tmp/alexm/llm/stack_llama_2/",
         metadata={"help": "the path to save the model"},
     )
-    databricks_host: str = field(metadata={"help": "Databricks host environment variable"})
-    databricks_token: str = field(metadata={"help": "Databricks token environment variable"})
+    databricks_host: Optional[str] = field(default="host", metadata={"help": "Databricks host environment variable"})
+    databricks_token: Optional[str] = field(default="token", metadata={"help": "Databricks token environment variable"})
 
     # LoraConfig
     lora_alpha: Optional[float] = field(default=16, metadata={"help": "the lora alpha parameter"})
@@ -50,14 +50,16 @@ script_args, training_args = parser.parse_args_into_dataclasses()
 
 os.environ['DATABRICKS_HOST'] = script_args.databricks_host
 os.environ['DATABRICKS_TOKEN'] = script_args.databricks_token
-mlflow.set_tracking_uri("databricks")
-mlflow.set_experiment("/Users/alex.miller@databricks.com/dpo-sft-llama2")
+# mlflow.set_tracking_uri("databricks")
+# mlflow.set_experiment("/Users/alex.miller@databricks.com/dpo-sft-llama2")
 
+target_modules = ['q_proj','k_proj','v_proj','o_proj','gate_proj','down_proj','up_proj','lm_head']
+target_modules = ["q_proj", "v_proj"]
 peft_config = LoraConfig(
     r=script_args.lora_r,
     lora_alpha=script_args.lora_alpha,
     lora_dropout=script_args.lora_dropout,
-    target_modules=["q_proj", "v_proj"],
+    target_modules=target_modules,
     bias="none",
     task_type="CAUSAL_LM",
 )
@@ -155,17 +157,23 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_quant_type="nf4",
     bnb_4bit_compute_dtype=torch.bfloat16,
 )
-
+print(f"Loading base model: {script_args.model_name}")
 base_model = AutoModelForCausalLM.from_pretrained(
     script_args.model_name,
     quantization_config=bnb_config,
-    device_map={"": Accelerator().local_process_index},
     trust_remote_code=True,
     use_auth_token=True,
 )
+# base_model = AutoModelForCausalLM.from_pretrained(
+#     script_args.model_name,
+#     quantization_config=bnb_config,
+#     device_map={"": Accelerator().local_process_index},
+#     trust_remote_code=True,
+#     use_auth_token=True,
+# )
 base_model.config.use_cache = False
 
-
+print(f"Loading tokenizer: {script_args.model_name}")
 tokenizer = AutoTokenizer.from_pretrained(script_args.model_name, trust_remote_code=True)
 tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = "right"  # Fix weird overflow issue with fp16 training

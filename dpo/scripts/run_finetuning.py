@@ -61,6 +61,16 @@ os.environ['LOGDIR'] = logdir
 
 # COMMAND ----------
 
+import os
+
+os.environ["HF_HOME"] = "/local_disk0/hf"
+os.environ["HF_DATASETS_CACHE"] = "/local_disk0/hf"
+os.environ["TRANSFORMERS_CACHE"] = "/local_disk0/hf"
+os.environ["NCCL_P2P_DISABLE"] = "1"
+os.environ["NCCL_DEBUG"] = "INFO"
+
+# COMMAND ----------
+
 # import os
 # os.environ['SCRIPT'] = "../llmsforgood/llama2-7b-vegi.py" 
 # os.environ['OUTPUT'] = output
@@ -81,7 +91,7 @@ notebook.list()
 
 # COMMAND ----------
 
-from huggingface_hub import notebook_login
+from huggingface_hub import notebook_login, login
 
 notebook_login()
 
@@ -99,16 +109,22 @@ os.environ['DATABRICKS_TOKEN'] = db_token
 # COMMAND ----------
 
 # MAGIC %sh accelerate launch --config_file ./config/deepspeed_zero1.yaml $SCRIPT \
-# MAGIC     --output_dir="./sft" \
+# MAGIC     --output_dir=$LOGDIR \
+# MAGIC     --gradient_checkpointing=False \
+# MAGIC     --dataset_name="lvwerra/stack-exchange-paired" \
 # MAGIC     --max_steps=500 \
 # MAGIC     --logging_steps=10 \
 # MAGIC     --save_steps=10 \
-# MAGIC     --per_device_train_batch_size=4 \
+# MAGIC     --gradient_accumulation_steps=2 \
+# MAGIC     --per_device_train_batch_size=1 \
 # MAGIC     --per_device_eval_batch_size=1 \
 # MAGIC     --bf16=True \
 # MAGIC     --learning_rate=1e-4 \
 # MAGIC     --report_to="none" \
-# MAGIC     --model_save_path=$OUTPUT
+# MAGIC     --model_save_path=$OUTPUT \
+# MAGIC     --databricks_host=$DATABRICKS_HOST \
+# MAGIC     --databricks_token=$DATABRICKS_TOKEN \
+# MAGIC     # --output_dir="./sft" \
 # MAGIC     # --log_with tensorboard \
 # MAGIC     # --gradient_checkpointing=False \
 # MAGIC     # --group_by_length=False \
