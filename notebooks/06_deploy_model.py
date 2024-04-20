@@ -1,16 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC
-# MAGIC # Create a model serving endpoint with Python
-# MAGIC
-# MAGIC This notebook covers wrapping the REST API queries for model serving endpoint creation, updating endpoint configuration based on model version, and endpoint deletion with Python for your Python model serving workflows.
-# MAGIC
-# MAGIC Learn more about model serving on Databricks ([AWS](https://docs.databricks.com/machine-learning/model-serving/create-manage-serving-endpoints.html) | [Azure](https://learn.microsoft.com/azure/databricks/machine-learning/model-inference/serverless/create-manage-serverless-endpoints)).
-# MAGIC
-# MAGIC ## Requirements
-# MAGIC
-# MAGIC Databricks Runtime ML 12.0 or above
-# MAGIC
+# MAGIC #Create a model serving endpoint with Python
+# MAGIC Now we have a fine-tuned model registered in Unity Catalog, our final step is to deploy this model behind a Model Serving endpoint. This notebook covers wrapping the REST API queries for model serving endpoint creation, updating endpoint configuration based on model version, and endpoint deletion with Python for your Python model serving workflows.
 
 # COMMAND ----------
 
@@ -19,8 +11,10 @@ import mlflow
 mlflow.set_registry_uri("databricks-uc")
 client = mlflow.tracking.MlflowClient()
 
-model_name = "rlaif.model.vegetarian-llama2-7b"
-model_serving_endpoint_name = "vegetarian-llama2-7b"
+catalog = "rlaif"
+log_schema = "inference_log" # A schema within the catalog where the inferece log is going to be stored 
+model_name = "rlaif.model.llama2-7b-vegetarian"
+model_serving_endpoint_name = "llama2-7b-vegetarian"
 
 # COMMAND ----------
 
@@ -54,10 +48,13 @@ instance = tags["browserHostName"]
 champion_version = client.get_model_version_by_alias(model_name, "champion")
 model_version = champion_version.version
 
+
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Set up configurations
+# MAGIC
+# MAGIC Depending on the latency and throughput requirements of your use case, you want to choose the right `workload_type` and `workload_size`. **Note that if you're using Azure Databricks, use `GPU_LARGE` for `workload_type`**. The `auto_capture_config` block specifies where to write the inference logs: i.e. requests and responses from the endpoint with a timestamp. 
 
 # COMMAND ----------
 
@@ -74,9 +71,24 @@ my_json = {
                 "workload_size": "Small",
                 "scale_to_zero_enabled": "false",
             }
-        ]
+        ],
+        "auto_capture_config": {
+            "catalog_name": catalog,
+            "schema_name": log_schema,
+            "table_name_prefix": model_serving_endpoint_name,
+        },
     },
 }
+
+# Make sure to the schema for the inference table exists
+_ = spark.sql(
+    f"CREATE SCHEMA IF NOT EXISTS {catalog}.{log_schema}"
+)
+
+# Make sure to drop the inference table of it exists
+_ = spark.sql(
+    f"DROP TABLE IF EXISTS {catalog}.{log_schema}.`{model_serving_endpoint_name}_payload`"
+)
 
 # COMMAND ----------
 
@@ -87,7 +99,6 @@ my_json = {
 # MAGIC - delete a model serving endpoint
 
 # COMMAND ----------
-
 
 def func_create_endpoint(model_serving_endpoint_name):
     # get endpoint status
@@ -196,18 +207,14 @@ api_url = mlflow.utils.databricks_utils.get_webapp_url()
 
 wait_for_endpoint()
 
-# Give the system just a couple extra seconds to transition
-time.sleep(300)
-
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Score the model
 # MAGIC
-# MAGIC The following command defines the `score_model()` function  and an example scoring request under the `payload_json` variable.
+# MAGIC The following command defines the `generate_response()` function and sends a scoring request under the `payload_json` variable.
 
 # COMMAND ----------
-
 
 def prompt(text):
     return f"""[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {text} [/INST]"""
@@ -261,5 +268,3 @@ print(generate_response(prompt)["predictions"][0]["candidates"][0]["text"])
 # COMMAND ----------
 
 # func_delete_model_serving_endpoint(model_serving_endpoint_name)
-
-# COMMAND ----------
