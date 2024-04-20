@@ -56,6 +56,6 @@ def run_inference_vllm(
     outputs = []
     for ndx in range(0, len(prompts), chunk_size):
         chunk_idx_max = min(ndx + chunk_size, len(prompts))
-        print(f"Processing next chink from {ndx} to {chunk_idx_max}...")
+        print(f"Processing next chunk from {ndx} to {chunk_idx_max}...")
         outputs.extend(llm.generate(prompts[ndx:chunk_idx_max], sampling_params))
     return [r.outputs[0].text for r in outputs]

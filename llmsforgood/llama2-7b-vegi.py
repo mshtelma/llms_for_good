@@ -42,9 +42,9 @@ tqdm.pandas()
 ########################################################################
 # This is a fully working simple example to use trl with accelerate.
 #
-# This example fine-tunes a GPTJ model to generate less toxic contents
-# by using allenai/real-toxicity-prompts dataset. We use PPO
-#  (proximal policy optimization) to optimize the model.
+# This example fine-tunes a Llama-2-7b-chat-hf model to generate more vegetarian contents
+# by using prompts dataset. We use PPO (proximal policy optimization) 
+# to optimize the model.
 # in any of the following settings (with the same script):
 #   - single CPU or single GPU
 #   - multi GPUS (using PyTorch distributed mode)
@@ -79,21 +79,21 @@ class ScriptArguments:
         default=1, metadata={"help": "the number of gradient accumulation steps"}
     )
     model_save_path: Optional[str] = field(
-        default="/dbfs/tmp/rlaif/llm/",
+        default="/dbfs/rlaif/llm/",
         metadata={"help": "the path to save the model"},
     )
     dataset_path: Optional[str] = field(
-        default="/dbfs/tmp/rlaif/data/",
+        default="/dbfs/rlaif/data/",
         metadata={"help": "the path to the training dataset"}
     )
     sample_size: Optional[int] = field(default=None, metadata={"help": "the number of training samples. put None to use all."})
-    ppo_epochs: Optional[int] = field(default=1, metadata={"help": "the number of epochs for training"})
+    ppo_epochs: Optional[int] = field(default=2, metadata={"help": "the number of epochs for training"})
 
 
 parser = HfArgumentParser(ScriptArguments)
 script_args = parser.parse_args_into_dataclasses()[0]
 
-#Targeting all linear layers
+# Targeting all linear layers
 target_modules = ['q_proj','k_proj','v_proj','o_proj','gate_proj','down_proj','up_proj','lm_head']
 
 lora_config = LoraConfig(
@@ -119,9 +119,8 @@ config = PPOConfig(
 def prompt_generate(text):
   return f"""[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {text} [/INST]"""
 
-# Below is an example function to build the dataset. In our case, we use the IMDB dataset
-# from the `datasets` library. One should customize this function to train the model on
-# its own dataset.
+# Below is an example function to build the dataset. We use the dataset stored in dataset_path.
+# One should customize this function to train the model on its own dataset.
 def build_dataset(config, dataset_path):
     """
     Build dataset for training. This builds the dataset from `load_dataset`, one should
@@ -174,7 +173,6 @@ model = AutoModelForCausalLM.from_pretrained(
     torch_dtype=torch.bfloat16,
     trust_remote_code=True,
     #use_auth_token=True,
-    #load_in_8bit=True,
     )
 # And then we pass the loaded model to `AutoModelForCausalLMWithValueHead`.
 model = AutoModelForCausalLMWithValueHead.from_pretrained(
@@ -182,7 +180,8 @@ model = AutoModelForCausalLMWithValueHead.from_pretrained(
     peft_config=lora_config
     )
 
-# We create a reference model by sharing 20 layers
+# We can create a reference model by specifying the number of sharing layers
+# However, since we use LoRA in this demo, we don't need the reference model.
 #ref_model = create_reference_model(model, num_shared_layers=20)
 
 # We make sure to use `Adam` optimizer on the model parameters that require gradients.
@@ -195,7 +194,7 @@ tokenizer.pad_token = tokenizer.eos_token
 ppo_trainer = PPOTrainer(
     config,
     model,
-    ref_model=None,
+    ref_model=None, # Set the reference model to None as we are using LoRA
     tokenizer=tokenizer,
     dataset=dataset,
     data_collator=collator,
@@ -221,7 +220,7 @@ def prompt_score(text):
 
 async def llama(url, token, text, session):
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-    body = {"dataframe_records": [{"prompt": prompt_score(text)}], "params": {"max_tokens": 64}}
+    body = {"messages": [{"role": "user", "content": prompt_score(text)}], "params": {"max_tokens": 64}}
     data = json.dumps(body)
     async with session.post(url, data=data, headers=headers) as response:
         return await response.json()
@@ -268,7 +267,7 @@ for epoch in range(config.ppo_epochs):
         scores = []
         try:
             responses = asyncio.run(run_concurrent_requests(REWARD_LLM_ENDPOINT_URL, REWARD_LLM_ENDPOINT_TOKEN, texts))
-            responses = [responses[i]['predictions'][0]['candidates'][0]['text'] for i in range(len(responses))]
+            responses = [responses[i]["choices"][0]["message"]["content"] for i in range(len(responses))]
             for response in responses:
                 match = re.search(r'\d+\.\d+', response)
                 scores.append(float(match.group()))
@@ -281,7 +280,7 @@ for epoch in range(config.ppo_epochs):
         stats = ppo_trainer.step(query_tensors, response_tensors, rewards_tensors)
         ppo_trainer.log_stats(stats, batch, rewards_tensors)
         
-        # Save model every 1 step
+        # Save model every 64 step
         if step % 64 == 0:
             if ppo_trainer.accelerator.is_main_process:
                 ppo_trainer.save_pretrained(model_save_path)
