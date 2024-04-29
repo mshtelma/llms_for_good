@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC #Evaluate the reward model
 # MAGIC
-# MAGIC We are going to use [Llama-2-70b-chat-hf](https://huggingface.co/meta-llama/Llama-2-70b-chat-hf) as our reward model in this solution. In contrast to the target model that will loaded into our local environment, the reward model will be hosted on [Databricks Model Serving](https://docs.databricks.com/en/machine-learning/model-serving/index.html). Therefore, the underlying infrastructure is managed by Databricks providing optimized performance with robust security and governance. We only need to provide the expected throughput in terms of the number of tokens generation per unit time.
+# MAGIC We are going to use [Meta-Llama-3-70B-Instruct](https://huggingface.co/meta-llama/Meta-Llama-3-70B-Instruct) as our reward model in this solution. In contrast to the target model that will loaded into our local environment, the reward model will be hosted on [Databricks Model Serving](https://docs.databricks.com/en/machine-learning/model-serving/index.html). Therefore, the underlying infrastructure is managed by Databricks providing optimized performance with robust security and governance. We only need to provide the expected throughput in terms of the number of tokens generation per unit time.
 # MAGIC
 # MAGIC An important assumption here is that our model is capable of accurately scoring the texts. In this notebook, we will evaluate this. To do so, we take a hundred prompts each paired with a good and a bad response. We then ask the reward model to score these responses. On the scale from 0 to 1, if the model is able to assign a score below 0.5 for a bad response, and vice versa for a good response, we can take that as a valid prediction. Then, any binary classification metric such as accuracy, precision, or F1 will do the job of assessing the ability of the reward model to align our base model.
 
@@ -214,25 +214,25 @@ display(df)
 # MAGIC
 # MAGIC We will ask our reward model to score the texts based on the alignment criteria. These criteria are defined in the prompt, and we also provide an example of what a good and bad answers look like to help our reward model.  
 # MAGIC
-# MAGIC Before moving on to the next cells, make sure you have your reward model deployed in Databricks Model Serving and have provided the endpoint URL and your [personal access token](https://docs.databricks.com/en/dev-tools/auth/pat.html) in the configuration file, `llmsforgood/conf.yaml`. We use `llama_2_70b_chat_hf` model `version 3` in this demo, but if you want to use one of the open source models available in [Marketplace](https://www.databricks.com/product/marketplace), you can easily download and register it in your Unity Catalog and serve it from Databricks Model Serving. We recommend using the [provisioned throughput](https://docs.databricks.com/en/machine-learning/foundation-models/deploy-prov-throughput-foundation-model-apis.html) mode to deploy your reward model instead of [pay-per-token](https://docs.databricks.com/en/machine-learning/foundation-models/supported-models.html) mode, as this way you have more flexibility to control the throughput, and hence the training time via the batch size. We will discuss this more in detail in the next notebook.
+# MAGIC Before moving on to the next cells, make sure you have your reward model deployed in Databricks Model Serving and have provided the endpoint URL and your [personal access token](https://docs.databricks.com/en/dev-tools/auth/pat.html) in the configuration file, `llmsforgood/conf.yaml`. We use `Meta-Llama-3-70B-Instruct` model `version 1` in this demo, but if you want to use other open source models available in [Marketplace](https://www.databricks.com/product/marketplace), you can easily download and register it in your Unity Catalog and serve it from Databricks Model Serving. We recommend using the [provisioned throughput](https://docs.databricks.com/en/machine-learning/foundation-models/deploy-prov-throughput-foundation-model-apis.html) mode to deploy your reward model instead of [pay-per-token](https://docs.databricks.com/en/machine-learning/foundation-models/supported-models.html) mode, as this way you have more flexibility to control the throughput, and hence the training time via the batch size. We will discuss this more in detail in the next notebook.
 # MAGIC
-# MAGIC The prompt we use to score the texts is:
+# MAGIC The prompt we use to score the texts is (see this [documentation](https://llama.meta.com/docs/model-cards-and-prompt-formats/meta-llama-3/) on how to prompt Llama 3 models):
 
 # COMMAND ----------
 
+def prompt_score(text):
+      return f"""Text: {text}"""
 
-def prompt(text):
-    return f"""[INST]<<SYS>>You are an AI assistant that specializes in vegetarian cuisine. Your task is to score the quality of a text related to  food preferences, recipes, or ingredients. Generate 1 score on a scale from 0.01 to 0.99, which indicates how good the text provided in the instruction is. The good answers are strictly vegetarian, accurate and helpful, while the bad answers are not vegetarian (include meat, chicken, beef and fish), incorrect or unhelpful.
-  
-  Below is an example of a good text with score 0.99 and a bad text with score 0.01.
-  
-  - Good text with score 0.99: "For protein-rich ingredients in vegetarian salads, you can consider using quinoa, chickpeas, black beans, tofu, tempeh, and a variety of nuts and seeds like almonds, sunflower seeds, or pumpkin seeds. These ingredients not only add a satisfying protein boost but also provide a delightful texture and flavor to your salads."
-
-  - Bad text with score 0.01: "You can add some sliced deli meats like turkey or chicken for protein. They are light and won't overpower the taste of your salad. Plus, they're easy to prepare and add to any salad mix. Fish is also a great alternative."
-
-  Give the score at the beginning. Give only the score. Use no more than 10 words.<</SYS>>
-  text: {text} [/INST]"""
-
+system_prompt = """
+      You are an AI assistant that specializes in vegetarian cuisine. Your task is to score the quality of a text related to food preferences, recipes, and ingredients. Generate 1 score on a scale from 0.01 to 0.99, which indicates how good the text provided in below is. The good answers are strictly vegetarian and accurate, while the bad answers are not vegetarian (including meat, chicken, beef and fish) or incorrect. 
+      
+      Below is an example of a good text with score 0.99 and a bad text with score 0.01.
+      
+      - Good text with score 0.99: "For protein-rich ingredients in vegetarian salads, you can consider using quinoa, chickpeas, black beans, tofu, tempeh, and a variety of nuts and seeds like almonds, sunflower seeds, or pumpkin seeds. These ingredients not only add a satisfying protein boost but also provide a delightful texture and flavor to your salads."
+      
+      - Bad text with score 0.01: "You can add some sliced deli meats like turkey or chicken for protein. They are light and won't overpower the taste of your salad. Plus, they're easy to prepare and add to any salad mix. Fish is also a great alternative."
+      
+      Give the score at the beginning. Give only the score. Use no more than 10 words."""
 
 # COMMAND ----------
 
@@ -255,7 +255,16 @@ from llmsforgood.conf import REWARD_LLM_ENDPOINT_URL, REWARD_LLM_ENDPOINT_TOKEN 
 # Hit the scoring end point in parallel
 async def main(url, token, text, session):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    body = {"messages": [{"role": "user", "content": prompt(text)}]}
+    body = body = {"messages": [
+        {
+            "role": "system", 
+            "content": system_prompt
+        },
+        {
+            "role": "user", 
+            "content": prompt_score(text)
+        }
+        ], "params": {"max_tokens": 64}}
     data = json.dumps(body)
     async with session.post(url, data=data, headers=headers) as response:
         return await response.json()
@@ -277,7 +286,7 @@ async def run_concurrent_requests(url, token, texts):
 
 import re
 
-n_batch = 8
+n_batch = 10
 scores = []
 true = []
 
@@ -295,6 +304,7 @@ for i in range(0, len(df), n_batch):
             responses[i]["choices"][0]["message"]["content"]
             for i in range(len(responses))
         ]
+        
     except TypeError:
         print("Too many requests sent at once! Decrease the batch size or increase the throughput.")
     
@@ -321,7 +331,7 @@ print(f"Mean predicted score:\t{sum(scores)/len(scores)}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The accuracy of the prediction when the predicted scores are projected onto binary classes: i.e. below 0.5 -> 0, above 0.5 -> 1, is 0.985. At least for this evaluation dataset generated by DBRX, we can be cofident that Llama-2-70b-chat-hf is capable of assigning an accurate score reflecting the alignment requirements. We can now gladly move on to the fine-tuning part.   
+# MAGIC The accuracy of the prediction when the predicted scores are projected onto binary classes: i.e. below 0.5 -> 0, above 0.5 -> 1, is 0.95. At least for this evaluation dataset generated by DBRX, we can be cofident that Meta-Llama-3-70B-Instruct is capable of assigning an accurate score reflecting the alignment requirements. We can now gladly move on to the fine-tuning part.   
 
 # COMMAND ----------
 
@@ -329,3 +339,7 @@ projection = [1 if score > 0.5 else 0 for score in scores]
 print(
     f"Accuracy of the prediction when scores projected to binary classes: {sum(1 for x, y in zip(projection, true) if x == y) / len(projection)}"
 )
+
+# COMMAND ----------
+
+

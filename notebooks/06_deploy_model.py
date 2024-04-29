@@ -13,8 +13,8 @@ client = mlflow.tracking.MlflowClient()
 
 catalog = "rlaif"
 log_schema = "inference_log" # A schema within the catalog where the inferece log is going to be stored 
-model_name = "rlaif.model.llama2-7b-vegetarian"
-model_serving_endpoint_name = "llama2-7b-vegetarian"
+model_name = "rlaif.model.llama3-8b-vegetarian"
+model_serving_endpoint_name = "llama3-8b-vegetarian"
 
 # COMMAND ----------
 
@@ -219,6 +219,11 @@ wait_for_endpoint()
 def prompt(text):
     return f"""[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {text} [/INST]"""
 
+text = "What are some protein sources that can be used in dishes?"
+prompt_generate = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+      You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words.<|eot_id|><|start_header_id|>user<|end_header_id|>
+      Question: {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+
 
 # COMMAND ----------
 
@@ -267,4 +272,4 @@ print(generate_response(prompt)["predictions"][0]["candidates"][0]["text"])
 
 # COMMAND ----------
 
-# func_delete_model_serving_endpoint(model_serving_endpoint_name)
+func_delete_model_serving_endpoint(model_serving_endpoint_name)
