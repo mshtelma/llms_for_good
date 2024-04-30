@@ -1,6 +1,23 @@
 # Databricks notebook source
-from huggingface_hub import notebook_login
-notebook_login()
+# MAGIC %md
+# MAGIC We use a secret to authenticate against Hugging Face (see [Documentation](https://docs.databricks.com/en/security/secrets/secrets.html)).<br/>
+# MAGIC - We can use the cluster terminal and install: <br/>
+# MAGIC `pip install databricks-cli` <br/>
+# MAGIC - Configure the CLI. We'll need our workspace URL and a PAT token from our profile page.<br>
+# MAGIC `databricks configure`
+# MAGIC - Create the rlaif scope:<br/>
+# MAGIC `databricks secrets create-scope --scope rlaif`
+# MAGIC - Save your Hugging Face secret.<br>
+# MAGIC `databricks secrets put --scope rlaif --key hf_token`
+
+# COMMAND ----------
+
+# DBTITLE 1,Authenticate against Hugging Face
+import os
+from huggingface_hub import login
+
+os.environ["HF_TOKEN"] = dbutils.secrets.get("rlaif", "hf_token")
+login(os.environ["HF_TOKEN"])
 
 # COMMAND ----------
 

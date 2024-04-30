@@ -92,8 +92,10 @@ notebook.list()
 # COMMAND ----------
 
 # DBTITLE 1,Login to Hugging Face with your credentials to use Llama models
-from huggingface_hub import notebook_login
-notebook_login()
+from huggingface_hub import login
+
+os.environ["HF_TOKEN"] = dbutils.secrets.get("rlaif", "hf_token")
+login(os.environ["HF_TOKEN"])
 
 # COMMAND ----------
 
@@ -153,8 +155,11 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 # DBTITLE 1,Login to Hugging Face with your credentials to use Llama models
-from huggingface_hub import notebook_login
-notebook_login()
+import os
+from huggingface_hub import login
+
+os.environ["HF_TOKEN"] = dbutils.secrets.get("rlaif", "hf_token")
+login(os.environ["HF_TOKEN"])
 
 # COMMAND ----------
 
@@ -172,6 +177,8 @@ import peft
 import accelerate
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+os.environ["HF_TOKEN"] = dbutils.secrets.get("rlaif", "hf_token")
+
 class vegetarian(mlflow.pyfunc.PythonModel):
     def __init__(self, model_name):
         self.model_name = model_name
@@ -181,6 +188,11 @@ class vegetarian(mlflow.pyfunc.PythonModel):
         This method initializes the tokenizer and language model
         using the specified model repository.
         """
+        # Authenticate to Hugging Face
+        import os
+        from huggingface_hub import login
+        login(os.environ["HF_TOKEN"])
+        
         # Initialize tokenizer and language model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")        
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
@@ -310,8 +322,10 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 # DBTITLE 1,Login to Hugging Face with your credentials to use Llama models
-from huggingface_hub import notebook_login
-notebook_login()
+import os
+from huggingface_hub import login
+os.environ["HF_TOKEN"] = dbutils.secrets.get("rlaif", "hf_token")
+login(os.environ["HF_TOKEN"])
 
 # COMMAND ----------
 

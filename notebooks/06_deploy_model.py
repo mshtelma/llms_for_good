@@ -48,7 +48,6 @@ instance = tags["browserHostName"]
 champion_version = client.get_model_version_by_alias(model_name, "champion")
 model_version = champion_version.version
 
-
 # COMMAND ----------
 
 # MAGIC %md
@@ -70,6 +69,9 @@ my_json = {
                 "workload_type": "GPU_LARGE",
                 "workload_size": "Small",
                 "scale_to_zero_enabled": "false",
+                "environment_vars": {
+                    "HF_TOKEN": "{{secrets/rlaif/hf_token}}"
+                }
             }
         ],
         "auto_capture_config": {
@@ -216,14 +218,10 @@ wait_for_endpoint()
 
 # COMMAND ----------
 
-def prompt(text):
-    return f"""[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {text} [/INST]"""
-
-text = "What are some protein sources that can be used in dishes?"
-prompt_generate = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+def prompt_generate(text):
+    return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
       You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words.<|eot_id|><|start_header_id|>user<|end_header_id|>
       Question: {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
-
 
 # COMMAND ----------
 
@@ -241,14 +239,13 @@ token = (
     dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
 )
 
-
 def generate_response(text, url=endpoint_url, databricks_token=token):
     headers = {
         "Authorization": f"Bearer {databricks_token}",
         "Content-Type": "application/json",
     }
     body = {
-        "dataframe_records": [{"prompt": prompt(text)}],
+        "dataframe_records": [{"prompt": prompt_generate(text)}],
         "params": {"max_tokens": 250},
     }
     data = json.dumps(body)
@@ -259,11 +256,10 @@ def generate_response(text, url=endpoint_url, databricks_token=token):
         )
     return response.json()
 
-
 # COMMAND ----------
 
-question = "Give me recipes for a hot summer evening dinner."
-print(generate_response(prompt)["predictions"][0]["candidates"][0]["text"])
+text = "What are some protein sources that can be used in dishes?"
+print(generate_response(text)["predictions"][0]["candidates"][0]["text"])
 
 # COMMAND ----------
 
