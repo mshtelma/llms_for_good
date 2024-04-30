@@ -12,7 +12,25 @@
 
 # COMMAND ----------
 
-# MAGIC %md ### Add OpenAI
+# MAGIC %md ### Creating an external model endpoint with Azure Open AI as a judge
+# MAGIC
+# MAGIC Note that you'll need to change the values with your own Azure Open AI configuration. Alternatively, you can setup a connection to another provider like OpenAI.
+# MAGIC
+# MAGIC Note: If you don't have an Azure OpenAI deployment, this demo will fallback to a Databricks managed llama 2 model. Evaluation won't be as good.
+
+# COMMAND ----------
+
+dbutils.widgets.text("endpoint_name", "databricks-meta-llama-3-70b-instruct")
+endpoint_name = dbutils.widgets.get("endpoint_name")
+
+# COMMAND ----------
+
+from mlflow.deployments import get_deploy_client
+deploy_client = get_deploy_client("databricks")
+
+#Let's query our external model endpoint
+answer_test = deploy_client.predict(endpoint=endpoint_name, inputs={"messages": [{"role": "user", "content": "What is Apache Spark?"}]})
+answer_test['choices'][0]['message']['content']
 
 # COMMAND ----------
 
@@ -227,7 +245,7 @@ vegetarianism_example_2 = judge.create_evaluation_example(input=question,
 
 # COMMAND ----------
 
-endpoint_name = "databricks-dbrx-instruct"
+endpoint_name = "databricks-meta-llama-3-70b-instruct"
 vegetarianism_metric = judge.create_genai_metric(
     name="vegetarianism",
     definition=definition,
