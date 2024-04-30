@@ -7,9 +7,12 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
-from huggingface_hub import notebook_login
+# DBTITLE 1,Authenticate against Hugging Face
+import os
+from huggingface_hub import login
 
-notebook_login()
+os.environ["HF_TOKEN"] = dbutils.secrets.get("rlaif", "hf_token")
+login(os.environ["HF_TOKEN"])
 
 # COMMAND ----------
 
