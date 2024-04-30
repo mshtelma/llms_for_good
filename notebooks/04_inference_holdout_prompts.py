@@ -1,27 +1,40 @@
 # Databricks notebook source
 # MAGIC %md The objective of this notebook is to run inference on the "holdout prompts" which were created during `01_generate_prompts`. These prompts were not used to train the fine-tuned model and will be used during evaluation process to understand how well the model has generalized to unseen data. 
-# MAGIC 1. The first step is to run inference on the prompts using the pre fine-tuned model (meta-llama/Llama-2-7b-chat-hf) and save the results. 
+# MAGIC 1. The first step is to run inference on the prompts using the pre fine-tuned model (meta-llama/Meta-Llama-3-8B-Instruct) and save the results. 
 # MAGIC 2. The second step is to run inference on the prompts using the post fine-tuned model (vegetarian) and save the results. The results will be used in the evaluation step to compare pre vs. post model improvements. 
 # MAGIC
-# MAGIC DBR Run-time used to run this notebook is DBR 14.2ML with T4 GPUs
+# MAGIC DBR Run-time used to run this notebook is DBR 14.2ML with A10 GPU
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Step 1: Run inference on holdouts prompts using the pre fine-tuned model (meta-llama/Llama-2-7b-chat-hf)
+# MAGIC ### Step 1: Run inference on holdouts prompts using the pre fine-tuned model (meta-llama/Meta-Llama-3-8B-Instruct)
 
 # COMMAND ----------
 
-# MAGIC %md Create Hugging Face account if you haven't done so. Once you create account, generate a token and save it somewhere safe. This is needed to login to Hugging Face hub to download models.
+# MAGIC %md Create Hugging Face account if you haven't done so. Once you create account, generate a token and save it somewhere safe. This is needed to login to Hugging Face hub to download models. Once you have created account and generated a token, create a scope and secret using Databricks CLI so you can safely access token. 
+# MAGIC
+# MAGIC `databricks secrets create-scope rlaif`
+# MAGIC `databricks secrets put-secret rlaif hf_token`
 
 # COMMAND ----------
 
-from huggingface_hub import notebook_login
-notebook_login()
+dbutils.widgets.text("base_model_name", "meta-llama/Meta-Llama-3-8B-Instruct")
+dbutils.widgets.text("finetuned_model_name", "llama3-8b-vegetarian-20240429-00")
+
+base_model_name = dbutils.widgets.get("base_model_name")
+finetuned_model_name = dbutils.widgets.get("finetuned_model_name")
 
 # COMMAND ----------
 
-# MAGIC %md Import transformers package and load meta-llama/Llama-2-7b-chat-hf pre-trained model and tokenizer. This includes the model configurations in `generation_kwargs` that will be used to run inference, you can find more details on these configurations here.
+from huggingface_hub import login
+
+hf_token = dbutils.secrets.get("rlaif", "hf_token")
+login(hf_token)
+
+# COMMAND ----------
+
+# MAGIC %md Import transformers package and load meta-llama/Meta-Llama-3-8B-Instruct pre-trained model and tokenizer. This includes the model configurations in `generation_kwargs` that will be used to run inference, you can find more details on these configurations here.
 
 # COMMAND ----------
 
@@ -30,27 +43,31 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import transformers
 import torch
 
-model_name = "meta-llama/Llama-2-7b-chat-hf"
+# model_name = "meta-llama/Llama-2-7b-chat-hf"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = AutoModelForCausalLM.from_pretrained(
-    model_name,
+    base_model_name,
     low_cpu_mem_usage=True,
     torch_dtype=torch.bfloat16,
     trust_remote_code=True,
     use_auth_token=True,
     ).to(device)
 
-tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
-tokenizer.pad_token = tokenizer.eos_token
+tokenizer = AutoTokenizer.from_pretrained(base_model_name, padding_side="left")
+terminators = [
+    tokenizer.eos_token_id,
+    tokenizer.convert_tokens_to_ids("<|eot_id|>")
+]
 
 generation_kwargs = {
     "min_length": -1,
     "top_k": 0.0,
     "top_p": 1.0,
     "do_sample": True,
+    "eos_token_id": terminators,
     "pad_token_id": tokenizer.eos_token_id,
-    "max_new_tokens": 200
+    "max_new_tokens": 250
 }
 
 # COMMAND ----------
@@ -69,16 +86,47 @@ display(questions)
 
 # COMMAND ----------
 
-def get_prompt(prompt):
-  return f"[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {question}[/INST]"
+system_prompt = """You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words."""
+
+def get_prompt(text):
+    return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    {system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>
+    Question: {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+
+     
+import re
+      
+def extract_response(text, n=2):
+    """
+    Extracts everything after the second occurrence of "assistant" in the given text.
+
+    Args:
+    - text (str): The input text containing multiple occurrences of "assistant".
+
+    Returns:
+    - str: The extracted text after the second occurrence of "assistant", or None if it's not found.
+    """
+    # Find the position of the second occurrence of "assistant"
+    matches = re.finditer(r'assistant', text)
+    positions = [match.start() for match in matches]
+    if len(positions) >= n:
+        second_assistant_position = positions[1]
+        # Extract text after the second occurrence of "assistant"
+        return text[second_assistant_position:].strip()
+    else:
+        return None
 
 answers = []
+raw_answers = []
 
 for question in list(questions['prompt'].values):
-  prompt = get_prompt(question)
-  query = tokenizer.encode(prompt, return_tensors="pt").to(device)
-  outputs = model.generate(query, **generation_kwargs)
-  answers.append(tokenizer.decode(outputs[0])[len(prompt) + 6:])
+    prompt = get_prompt(question)
+    query = tokenizer.encode(prompt, return_tensors="pt").to(device)
+    outputs = model.generate(query, **generation_kwargs)
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    response_extract = extract_response(response).replace("assistant\n\n", "")
+    answers.append(response_extract)
+    raw_answers.append(response)
 
 # COMMAND ----------
 
@@ -86,14 +134,17 @@ for question in list(questions['prompt'].values):
 
 # COMMAND ----------
 
+from pyspark.sql import functions as F
+
 answers = pd.DataFrame(answers).rename(columns={0:"pre_finetuning"})
 df = pd.merge(questions, answers, left_index=True, right_index=True)
 df = spark.createDataFrame(df)
+       
 display(df)
 
 # COMMAND ----------
 
-df.write.saveAsTable(f"rlaif.data.pre_finetuning")
+df.write.mode("overwrite").saveAsTable(f"rlaif.data.pre_finetuning")
 
 # COMMAND ----------
 
@@ -118,7 +169,7 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
-# MAGIC %sh /databricks/python/bin/python -m pip install -r requirements.txt --quiet
+# MAGIC %sh /databricks/python/bin/python -m pip install -r ../requirements.txt --quiet
 
 # COMMAND ----------
 
@@ -130,8 +181,10 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
-from huggingface_hub import notebook_login
-notebook_login()
+from huggingface_hub import login
+
+hf_token = dbutils.secrets.get("rlaif", "hf_token")
+login(hf_token)
 
 # COMMAND ----------
 
@@ -145,22 +198,28 @@ notebook_login()
 
 # COMMAND ----------
 
+dbutils.widgets.text("base_model_name", "meta-llama/Meta-Llama-3-8B-Instruct")
+dbutils.widgets.text("finetuned_model_name", "llama3-8b-vegetarian-20240429-00")
+
+base_model_name = dbutils.widgets.get("base_model_name")
+finetuned_model_name = dbutils.widgets.get("finetuned_model_name")
+
+# COMMAND ----------
+
 import torch
 import peft
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftConfig, PeftModel
 from datetime import date
 
-model_name = "llama2-7b"
-base_model_name = "meta-llama/Llama-2-7b-chat-hf"
-output = f"/dbfs/tmp/rlaif/llm/{model_name}-vegetarian-20240113"
+finetuned_model_path = f"/dbfs/rlaif/llm/{finetuned_model_name}"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = AutoModelForCausalLM.from_pretrained(base_model_name, torch_dtype=torch.bfloat16).to(device)
-model = PeftModel.from_pretrained(model, output)
+model = PeftModel.from_pretrained(model, finetuned_model_path)
 model = model.merge_and_unload()
 
-tokenizer = AutoTokenizer.from_pretrained(output, padding_side="left")
+tokenizer = AutoTokenizer.from_pretrained(finetuned_model_path, padding_side="left")
 
 # COMMAND ----------
 
@@ -168,13 +227,19 @@ tokenizer = AutoTokenizer.from_pretrained(output, padding_side="left")
 
 # COMMAND ----------
 
+terminators = [
+    tokenizer.eos_token_id,
+    tokenizer.convert_tokens_to_ids("<|eot_id|>")
+]
+
 generation_kwargs = {
     "min_length": -1,
     "top_k": 0.0,
     "top_p": 1.0,
     "do_sample": True,
+    "eos_token_id": terminators,
     "pad_token_id": tokenizer.eos_token_id,
-    "max_new_tokens": 200
+    "max_new_tokens": 250
 }
 
 # COMMAND ----------
@@ -186,16 +251,49 @@ generation_kwargs = {
 import pandas as pd
 questions = spark.table("rlaif.data.prompts_holdout").toPandas()
 
-def get_prompt(prompt):
-  return f"[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {question}[/INST]"
+# COMMAND ----------
+
+system_prompt = """You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words."""
+
+def get_prompt(text):
+    return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    {system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>
+    Question: {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+
+     
+import re
+      
+def extract_response(text, n=2):
+    """
+    Extracts everything after the second occurrence of "assistant" in the given text.
+
+    Args:
+    - text (str): The input text containing multiple occurrences of "assistant".
+
+    Returns:
+    - str: The extracted text after the second occurrence of "assistant", or None if it's not found.
+    """
+    # Find the position of the second occurrence of "assistant"
+    matches = re.finditer(r'assistant', text)
+    positions = [match.start() for match in matches]
+    if len(positions) >= n:
+        second_assistant_position = positions[1]
+        # Extract text after the second occurrence of "assistant"
+        return text[second_assistant_position:].strip()
+    else:
+        return None
 
 answers = []
+raw_answers = []
 
 for question in list(questions['prompt'].values):
-  prompt = get_prompt(question)
-  query = tokenizer.encode(prompt, return_tensors="pt").to(device)
-  outputs = model.generate(query, **generation_kwargs)
-  answers.append(tokenizer.decode(outputs[0])[len(prompt) + 6:])
+    prompt = get_prompt(question)
+    query = tokenizer.encode(prompt, return_tensors="pt").to(device)
+    outputs = model.generate(query, **generation_kwargs)
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    response_extract = extract_response(response).replace("assistant\n\n", "")
+    answers.append(response_extract)
+    raw_answers.append(response)
 
 # COMMAND ----------
 
@@ -203,14 +301,17 @@ for question in list(questions['prompt'].values):
 
 # COMMAND ----------
 
+from pyspark.sql import functions as F
+
 answers = pd.DataFrame(answers).rename(columns={0:"post_finetuning"})
 df = pd.merge(questions, answers, left_index=True, right_index=True)
 df = spark.createDataFrame(df)
+       
 display(df)
 
 # COMMAND ----------
 
-df.write.saveAsTable("rlaif.data.post_finetuning")
+df.write.mode("overwrite").saveAsTable("rlaif.data.post_finetuning")
 
 # COMMAND ----------
 

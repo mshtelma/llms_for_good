@@ -245,7 +245,7 @@ vegetarianism_example_2 = judge.create_evaluation_example(input=question,
 
 # COMMAND ----------
 
-endpoint_name = "databricks-meta-llama-3-70b-instruct"
+# endpoint_name = "databricks-meta-llama-3-70b-instruct"
 vegetarianism_metric = judge.create_genai_metric(
     name="vegetarianism",
     definition=definition,
@@ -338,6 +338,6 @@ spark.createDataFrame(appended_results).write.mode("overwrite").saveAsTable("rla
 
 from pyspark.sql import functions as F
 
-results = spark.table("rlaif.data.evaluation_results")
+results = spark.table("rlaif.data.single_evaluation_results")
 
 display(results)
