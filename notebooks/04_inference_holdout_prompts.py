@@ -19,18 +19,24 @@
 
 # COMMAND ----------
 
+from datetime import date
+
+today = date.today().strftime("%Y%m%d")
+model_name = "llama3-8b-vegetarian"
+
 dbutils.widgets.text("base_model_name", "meta-llama/Meta-Llama-3-8B-Instruct")
-dbutils.widgets.text("finetuned_model_name", "llama3-8b-vegetarian-20240429-00")
+dbutils.widgets.text("finetuned_model_name", f"{model_name}-{today}")
 
 base_model_name = dbutils.widgets.get("base_model_name")
 finetuned_model_name = dbutils.widgets.get("finetuned_model_name")
 
 # COMMAND ----------
 
+import os
 from huggingface_hub import login
 
-hf_token = dbutils.secrets.get("rlaif", "hf_token")
-login(hf_token)
+os.environ["HF_TOKEN"] = dbutils.secrets.get("rlaif", "hf_token")
+login(os.environ["HF_TOKEN"])
 
 # COMMAND ----------
 
@@ -181,10 +187,11 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+import os
 from huggingface_hub import login
 
-hf_token = dbutils.secrets.get("rlaif", "hf_token")
-login(hf_token)
+os.environ["HF_TOKEN"] = dbutils.secrets.get("rlaif", "hf_token")
+login(os.environ["HF_TOKEN"])
 
 # COMMAND ----------
 
@@ -198,8 +205,13 @@ login(hf_token)
 
 # COMMAND ----------
 
+from datetime import date
+
+today = date.today().strftime("%Y%m%d")
+model_name = "llama3-8b-vegetarian"
+
 dbutils.widgets.text("base_model_name", "meta-llama/Meta-Llama-3-8B-Instruct")
-dbutils.widgets.text("finetuned_model_name", "llama3-8b-vegetarian-20240429-00")
+dbutils.widgets.text("finetuned_model_name", f"{model_name}-{today}")
 
 base_model_name = dbutils.widgets.get("base_model_name")
 finetuned_model_name = dbutils.widgets.get("finetuned_model_name")
