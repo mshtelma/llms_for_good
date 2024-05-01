@@ -1,5 +1,9 @@
 # Databricks notebook source
-# MAGIC %sh /databricks/python/bin/python -m pip install -r ../requirements.txt --quiet
+# %sh /databricks/python/bin/python -m pip install -r ../requirements.txt --quiet
+
+# COMMAND ----------
+
+# MAGIC %sh /databricks/python/bin/python -m pip install -r ./requirements.txt --quiet
 
 # COMMAND ----------
 
@@ -12,10 +16,31 @@ from datetime import date
 today = date.today().strftime("%Y%m%d")
 model_name = "llama2-7b"
 base_model_name = "meta-llama/Llama-2-7b-chat-hf"
-dataset_path = "/dbfs/tmp/rlaif/data/"
-output = f"/dbfs/tmp/rlaif/llm/{model_name}-vegetarian-{today}"
-tb_output = f"/dbfs/tmp/rlaif/tb/{model_name}-vegetarian-{today}"
-logdir = "/databricks/driver/logdir/trl"
+base_path = "/dbfs/tmp/alexm/llm/stack_llama_2/"
+dataset_path = f"{base_path}/data/vegetarian_data.json"
+# dataset_path = "/dbfs/tmp/alexm/llm/stack_llama_2/data/"
+output = f"{base_path}/{model_name}-vegetarian-{today}"
+tb_output = f"{base_path}/tb/{model_name}-vegetarian-{today}"
+logdir = "/databricks/driver/logdir/dpo"
+
+# COMMAND ----------
+
+# spark.table("ai_blog.gen_data.vegetarian_questions").write.format("json").save("dbfs:/tmp/alexm/llm/stack_llama_2/data/vegetarian_data.json")
+
+# COMMAND ----------
+
+# display(spark.read.format("json").load("dbfs:/tmp/alexm/llm/stack_llama_2/data/vegetarian_data.json"))
+
+# COMMAND ----------
+
+# from datetime import date
+# today = date.today().strftime("%Y%m%d")
+# model_name = "llama2-7b"
+# base_model_name = "meta-llama/Llama-2-7b-chat-hf"
+# dataset_path = "/dbfs/tmp/rlaif/data/"
+# output = f"/dbfs/tmp/rlaif/llm/{model_name}-vegetarian-{today}"
+# tb_output = f"/dbfs/tmp/rlaif/tb/{model_name}-vegetarian-{today}"
+# logdir = "/databricks/driver/logdir/trl"
 
 # COMMAND ----------
 
@@ -28,11 +53,20 @@ logdir = "/databricks/driver/logdir/trl"
 # COMMAND ----------
 
 import os
-os.environ['SCRIPT'] = "../llmsforgood/llama2-7b-vegi.py" 
+os.environ['SCRIPT'] = "./sft_llama2.py" 
 os.environ['OUTPUT'] = output
 os.environ['TB_OUTPUT'] = tb_output
 os.environ['DATSET_PATH'] = dataset_path
 os.environ['LOGDIR'] = logdir
+
+# COMMAND ----------
+
+# import os
+# os.environ['SCRIPT'] = "../llmsforgood/llama2-7b-vegi.py" 
+# os.environ['OUTPUT'] = output
+# os.environ['TB_OUTPUT'] = tb_output
+# os.environ['DATSET_PATH'] = dataset_path
+# os.environ['LOGDIR'] = logdir
 
 # COMMAND ----------
 
@@ -48,15 +82,43 @@ notebook.list()
 # COMMAND ----------
 
 from huggingface_hub import notebook_login
+
 notebook_login()
 
 # COMMAND ----------
 
-# MAGIC %sh accelerate launch --config_file ../yamls/accelerate/zero2.yaml $SCRIPT \
-# MAGIC     --dataset_path $DATSET_PATH \
-# MAGIC     --model_save_path $OUTPUT \
-# MAGIC     --log_with tensorboard \
-# MAGIC     --sample_size 1000
+# /Workspace/Repos/alex.miller@databricks.com/llms_for_good/dpo/scripts/config/deepspeed_zero1.yaml
+
+# COMMAND ----------
+
+db_host = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiUrl().get()
+db_token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
+os.environ['DATABRICKS_HOST'] = db_host
+os.environ['DATABRICKS_TOKEN'] = db_token
+
+# COMMAND ----------
+
+# MAGIC %sh accelerate launch --config_file ./config/deepspeed_zero1.yaml $SCRIPT \
+# MAGIC     --output_dir="./sft" \
+# MAGIC     --max_steps=500 \
+# MAGIC     --logging_steps=10 \
+# MAGIC     --save_steps=10 \
+# MAGIC     --per_device_train_batch_size=4 \
+# MAGIC     --per_device_eval_batch_size=1 \
+# MAGIC     --bf16=True \
+# MAGIC     --learning_rate=1e-4 \
+# MAGIC     --report_to="none" \
+# MAGIC     --model_save_path=$OUTPUT
+# MAGIC     # --log_with tensorboard \
+# MAGIC     # --gradient_checkpointing=False \
+# MAGIC     # --group_by_length=False \
+# MAGIC     # --learning_rate=1e-4 \
+# MAGIC     # --lr_scheduler_type="cosine" \
+# MAGIC     # --warmup_steps=100 \
+# MAGIC     # --weight_decay=0.05 \
+# MAGIC     # --optim="paged_adamw_32bit" \
+# MAGIC     # --remove_unused_columns=False \
+# MAGIC     # --run_name="sft_llama2" 
 
 # COMMAND ----------
 

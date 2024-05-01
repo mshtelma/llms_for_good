@@ -42,9 +42,9 @@ tqdm.pandas()
 ########################################################################
 # This is a fully working simple example to use trl with accelerate.
 #
-# This example fine-tunes Meta-Llama-3-8B-Instruct to generate more vegetarian contents
-# by using prompts dataset. We use PPO (proximal policy optimization) 
-# to optimize the model.
+# This example fine-tunes a GPTJ model to generate less toxic contents
+# by using allenai/real-toxicity-prompts dataset. We use PPO
+#  (proximal policy optimization) to optimize the model.
 # in any of the following settings (with the same script):
 #   - single CPU or single GPU
 #   - multi GPUS (using PyTorch distributed mode)
@@ -70,7 +70,7 @@ class ScriptArguments:
 
     # NOTE: gpt2 models use Conv1D instead of Linear layers which are not yet supported in 8 bit mode
     # models like gpt-neo* models are more suitable.
-    model_name: Optional[str] = field(default="meta-llama/Meta-Llama-3-8B-Instruct", metadata={"help": "the model name"})
+    model_name: Optional[str] = field(default="meta-llama/Llama-2-7b-chat-hf", metadata={"help": "the model name"})
     log_with: Optional[str] = field(default="tensorboard", metadata={"help": "use 'tensorboard' to log with tensorboard"})
     learning_rate: Optional[float] = field(default=(1.47e-5) * 2, metadata={"help": "the learning rate"})
     mini_batch_size: Optional[int] = field(default=4, metadata={"help": "the PPO minibatch size"})
@@ -79,21 +79,21 @@ class ScriptArguments:
         default=1, metadata={"help": "the number of gradient accumulation steps"}
     )
     model_save_path: Optional[str] = field(
-        default="/dbfs/rlaif/llm/",
+        default="/dbfs/tmp/rlaif/llm/",
         metadata={"help": "the path to save the model"},
     )
     dataset_path: Optional[str] = field(
-        default="/dbfs/rlaif/data/",
+        default="/dbfs/tmp/rlaif/data/",
         metadata={"help": "the path to the training dataset"}
     )
-    sample_size: Optional[int] = field(default=None, metadata={"help": "the number of training samples. Set to None to use all."})
+    sample_size: Optional[int] = field(default=None, metadata={"help": "the number of training samples. put None to use all."})
     ppo_epochs: Optional[int] = field(default=1, metadata={"help": "the number of epochs for training"})
 
 
 parser = HfArgumentParser(ScriptArguments)
 script_args = parser.parse_args_into_dataclasses()[0]
 
-# Targeting all linear layers
+#Targeting all linear layers
 target_modules = ['q_proj','k_proj','v_proj','o_proj','gate_proj','down_proj','up_proj','lm_head']
 
 lora_config = LoraConfig(
@@ -117,25 +117,11 @@ config = PPOConfig(
 )
 
 def prompt_generate(text):
-    return f"""<|start_header_id|>system<|end_header_id|>
-    You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words.<|eot_id|><|start_header_id|>user<|end_header_id|>
-    Question: {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+  return f"""[INST]<<SYS>>You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided in the instruction. Generate 1 text and do not generate more than 1 text. Be concise and answer within 100 words.<</SYS>> question: {text} [/INST]"""
 
-def prompt_score(text):
-    return f"""Text: {text}"""
-
-system_prompt = """You are an AI assistant that specializes in vegetarian cuisine. Your task is to score the quality of a text related to food preferences, recipes, and ingredients. Generate 1 score on a scale from 0.01 to 0.99, which indicates how good the text provided in below is. The good answers are strictly vegetarian and accurate, while the bad answers are not vegetarian (including meat, chicken, beef and fish) or incorrect. 
-
-Below is an example of a good text with score 0.99 and a bad text with score 0.01.
-
-- Good text with score 0.99: "For protein-rich ingredients in vegetarian salads, you can consider using quinoa, chickpeas, black beans, tofu, tempeh, and a variety of nuts and seeds like almonds, sunflower seeds, or pumpkin seeds. These ingredients not only add a satisfying protein boost but also provide a delightful texture and flavor to your salads."
-
-- Bad text with score 0.01: "You can add some sliced deli meats like turkey or chicken for protein. They are light and won't overpower the taste of your salad. Plus, they're easy to prepare and add to any salad mix. Fish is also a great alternative."
-
-Give the score at the beginning. Give only the score. Use no more than 10 words."""
-
-# Below is an example function to build the dataset. We use the dataset stored in dataset_path.
-# One should customize this function to train the model on its own dataset.
+# Below is an example function to build the dataset. In our case, we use the IMDB dataset
+# from the `datasets` library. One should customize this function to train the model on
+# its own dataset.
 def build_dataset(config, dataset_path):
     """
     Build dataset for training. This builds the dataset from `load_dataset`, one should
@@ -169,8 +155,10 @@ def build_dataset(config, dataset_path):
 
     return ds
 
+
 # We retrieve the dataloader by calling the `build_dataset` function.
 dataset = build_dataset(config, dataset_path=script_args.dataset_path)
+
 
 def collator(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
@@ -185,7 +173,8 @@ model = AutoModelForCausalLM.from_pretrained(
     low_cpu_mem_usage=True,
     torch_dtype=torch.bfloat16,
     trust_remote_code=True,
-    use_auth_token=True,
+    #use_auth_token=True,
+    #load_in_8bit=True,
     )
 # And then we pass the loaded model to `AutoModelForCausalLMWithValueHead`.
 model = AutoModelForCausalLMWithValueHead.from_pretrained(
@@ -193,8 +182,7 @@ model = AutoModelForCausalLMWithValueHead.from_pretrained(
     peft_config=lora_config
     )
 
-# We can create a reference model by specifying the number of sharing layers
-# However, since we use LoRA in this demo, we don't need the reference model.
+# We create a reference model by sharing 20 layers
 #ref_model = create_reference_model(model, num_shared_layers=20)
 
 # We make sure to use `Adam` optimizer on the model parameters that require gradients.
@@ -207,7 +195,7 @@ tokenizer.pad_token = tokenizer.eos_token
 ppo_trainer = PPOTrainer(
     config,
     model,
-    ref_model=None, # Set the reference model to None as we are using LoRA
+    ref_model=None,
     tokenizer=tokenizer,
     dataset=dataset,
     data_collator=collator,
@@ -219,18 +207,21 @@ import aiohttp
 import asyncio
 import re
 
+def prompt_score(text):
+  return f"""[INST]<<SYS>>You are an AI assistant that specializes in vegetarian cuisine. Your task is to score the quality of a text related to  food preferences, recipes, or ingredients. Generate 1 score on a scale from 0.01 to 0.99, which indicates how good the text provided in the instruction is. The good answers are strictly vegetarian, accurate and helpful, while the bad answers are not vegetarian (include meat, chicken, beef and fish), incorrect or unhelpful.
+  
+  Below is an example of a good text with score 0.99 and a bad text with score 0.01.
+  
+  - Good text with score 0.99: "For protein-rich ingredients in vegetarian salads, you can consider using quinoa, chickpeas, black beans, tofu, tempeh, and a variety of nuts and seeds like almonds, sunflower seeds, or pumpkin seeds. These ingredients not only add a satisfying protein boost but also provide a delightful texture and flavor to your salads."
+
+  - Bad text with score 0.01: "You can add some sliced deli meats like turkey or chicken for protein. They are light and won't overpower the taste of your salad. Plus, they're easy to prepare and add to any salad mix. Fish is also a great alternative."
+
+  Give the score at the beginning. Give only the score. Use no more than 10 words.<</SYS>>
+  text: {text} [/INST]"""
+
 async def llama(url, token, text, session):
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-    body = {"messages": [
-        {
-            "role": "system", 
-            "content": system_prompt
-        },
-        {
-            "role": "user", 
-            "content": prompt_score(text)
-        }
-        ], "params": {"max_tokens": 64}}
+    body = {"dataframe_records": [{"prompt": prompt_score(text)}], "params": {"max_tokens": 64}}
     data = json.dumps(body)
     async with session.post(url, data=data, headers=headers) as response:
         return await response.json()
@@ -243,67 +234,58 @@ async def run_concurrent_requests(url, token, texts):
             tasks.append(response)
         return await asyncio.gather(*tasks, return_exceptions=True)
 
-# We define the arguments to pass to the `generate` function. These arguments are 
-# passed to the `generate` function of the PPOTrainer, which is a wrapper around
+# We then define the arguments to pass to the `generate` function. These arguments
+# are passed to the `generate` function of the PPOTrainer, which is a wrapper around
 # the `generate` function of the trained model.
-terminators = [
-    tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>")
-]
-
 generation_kwargs = {
     "min_length": -1,
     "top_k": 0.0,
     "top_p": 1.0,
     "do_sample": True,
-    "max_new_tokens": 150,
-    "eos_token_id": terminators,
-    "pad_token_id": tokenizer.eos_token_id,
+    "pad_token_id": tokenizer.eos_token_id
 }
 
-# Base model sometimes generates no response, which causes an error.
-# We overwrite these empty texts with a place holder text.
-place_holder_text = "The base model failed to generate a meaningful text."
 model_save_path = script_args.model_save_path
 
 for epoch in range(config.ppo_epochs):
+    
     if ppo_trainer.accelerator.is_main_process:
         print(f"Epoch: {epoch}")
+    
     for step, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         query_tensors = batch["input_ids"]
-        # Get the response from the base model
+
+        # Get response from the policy model
         response_tensors = []
-        for query in query_tensors:                    
-            response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs).squeeze()
-            if not response.shape:
-                response = torch.tensor(tokenizer.encode(place_holder_text)).squeeze()
-            response_tensors.append(response)                
-        # Get the score from the reward model
-        batch["response"] = [tokenizer.decode(r, skip_special_tokens=True) for r in response_tensors]
+        for query in query_tensors:        
+            response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
+            response_tensors.append(response.squeeze())
+            
+        batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+
+        # Compute sentiment score # noqa
+        texts = batch["response"]
         scores = []
         try:
-            responses = asyncio.run(run_concurrent_requests(REWARD_LLM_ENDPOINT_URL, REWARD_LLM_ENDPOINT_TOKEN, batch["response"]))
-            responses = [responses[i]["choices"][0]["message"]["content"] for i in range(len(responses))]
+            responses = asyncio.run(run_concurrent_requests(REWARD_LLM_ENDPOINT_URL, REWARD_LLM_ENDPOINT_TOKEN, texts))
+            responses = [responses[i]['predictions'][0]['candidates'][0]['text'] for i in range(len(responses))]
             for response in responses:
                 match = re.search(r'\d+\.\d+', response)
                 scores.append(float(match.group()))
-            rewards_tensors = [torch.tensor(math.log(score/(1.0-score))) for score in scores]
         except:
             scores = [0.5] * config.batch_size
-            rewards_tensors = [torch.tensor(0.)] * config.batch_size
+            
+        rewards_tensors = [torch.tensor(math.log(score/(1.0-score))) for score in scores]
+        
         # Run PPO step
         stats = ppo_trainer.step(query_tensors, response_tensors, rewards_tensors)
         ppo_trainer.log_stats(stats, batch, rewards_tensors)
         
-        # Save model every 20 step and write out results every 40 step 
-        # One step trains on <batch_size> x <num_processes> prompts
-        if step % 20 == 0:
+        # Save model every 1 step
+        if step % 64 == 0:
             if ppo_trainer.accelerator.is_main_process:
                 ppo_trainer.save_pretrained(model_save_path)
-            if step % 40 == 0:
-                if ppo_trainer.accelerator.is_main_process:
-                    print(f"STEP: {step}")
-                    print(f"PROMPTS: {batch['query']}")
-                    print(f"GENERATED: {batch['response']}")
-                    print(f"SCORED: {responses}")    
-        
+                print(f"STEP: {step}")
+                print(f"PROMPTS: {batch['query']}")
+                print(f"GENERATED: {texts}")
+                print(f"SCORED: {responses}")

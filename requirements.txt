@@ -8,4 +8,3 @@ loralib
 peft>=0.3.0
 tyro>=0.5.7
 trl==0.7.3
-deepspeed-mii==0.2.1
