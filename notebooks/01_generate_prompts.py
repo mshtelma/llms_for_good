@@ -121,9 +121,9 @@ while len(questions) < 100:
 # COMMAND ----------
 
 import pandas as pd
-df = pd.DataFrame(questions).rename(columns={0:"questio"})
+df = pd.DataFrame(questions).rename(columns={0:"question"})
 df = spark.createDataFrame(df)
-#df.write.saveAsTable("rlaif.data.prompts_holdout")
+df.write.saveAsTable("rlaif.data.prompts_holdout")
 display(df)
 
 # COMMAND ----------
