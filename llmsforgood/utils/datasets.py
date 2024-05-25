@@ -37,7 +37,7 @@ def prompt_generate(text):
     Question: {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
 
-def build_dataset(config, dataset_path):
+def build_dataset(dataset_path: str, model_name: str, sample_size: int = -1):
     """
     Build dataset for training. This builds the dataset from `load_dataset`, one should
     customize this function to train the model on its own dataset.
@@ -50,13 +50,13 @@ def build_dataset(config, dataset_path):
         dataloader (`torch.utils.data.DataLoader`):
             The dataloader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
     ds = load_from_disk(dataset_path)
 
-    # if script_args.sample_size:
-    #    ds = ds.select(range(script_args.sample_size))
+    if sample_size > 0:
+        ds = ds.select(range(sample_size))
 
     def tokenize(sample):
         prompt = prompt_generate(sample["prompt"])

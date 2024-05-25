@@ -48,7 +48,7 @@ from llmsforgood.utils.inference import run_scoring
 
 def run_training(script_args: ScriptArguments):
     mlflow.set_experiment(script_args.mlflow_experiment_path)
-    with mlflow.start_run() as run:
+    with mlflow.start_run(run_name=os.environ["RUN_NAME"]) as run:
         config = PPOConfig(
             model_name=script_args.model_name,
             learning_rate=script_args.learning_rate,
@@ -59,8 +59,9 @@ def run_training(script_args: ScriptArguments):
             gradient_accumulation_steps=script_args.gradient_accumulation_steps,
         )
 
-        # download_dataset("/Volumes/msh/rlaif/data/hf_train_dataset", "/tmp/temp_dataset")
-        dataset = build_dataset(config, dataset_path="/tmp/temp_dataset")
+        dataset = build_dataset(
+            conf.LOCAL_DATASET_PATH, config.model_name, script_args.sample_size
+        )
 
         def collator(data):
             return dict((key, [d[key] for d in data]) for key in data[0])
