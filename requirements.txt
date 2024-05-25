@@ -1,6 +1,5 @@
 datasets>=1.17.0
 torch>=1.4.0
-tqdm
 transformers==4.41.1
 accelerate==0.30.1
 #bitsandbytes
@@ -12,3 +11,4 @@ databricks-sdk==0.27.1
 langchain
 langchain-community
 mlflow==2.13.0
+deepspeed

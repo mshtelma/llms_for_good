@@ -55,7 +55,7 @@ def build_dataset(dataset_path: str, model_name: str, sample_size: int = -1):
 
     ds = load_from_disk(dataset_path)
 
-    if sample_size > 0:
+    if sample_size:
         ds = ds.select(range(sample_size))
 
     def tokenize(sample):

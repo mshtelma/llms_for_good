@@ -10,8 +10,8 @@ class ScriptArguments:
     The name of the Casual LM model we wish to fine tune with PPO
     """
 
-    run_training: Optional[bool] = field(
-        default=True,
+    train: Optional[bool] = field(
+        default=False,
         metadata={"help": "Run training."},
     )
 
@@ -25,7 +25,7 @@ class ScriptArguments:
         metadata={"help": "the model name"},
     )
     learning_rate: Optional[float] = field(
-        default=1.5e-08, metadata={"help": "the learning rate"}
+        default=1.5e-08/3., metadata={"help": "the learning rate"}
     )
     mini_batch_size: Optional[int] = field(
         default=4, metadata={"help": "the PPO minibatch size"}

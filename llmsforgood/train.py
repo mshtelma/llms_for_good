@@ -23,6 +23,7 @@ from trl import (
     set_seed,
 )
 
+from llmsforgood.lion import Lion
 from llmsforgood.utils.cli import parse_cmd_args, ScriptArguments
 from llmsforgood.utils.datasets import download_dataset, build_dataset
 from llmsforgood.utils.inference import run_scoring
@@ -57,6 +58,10 @@ def run_training(script_args: ScriptArguments):
             mini_batch_size=script_args.mini_batch_size,
             batch_size=script_args.batch_size,
             gradient_accumulation_steps=script_args.gradient_accumulation_steps,
+            #optimize_cuda_cache=True,
+            use_score_scaling=True,
+            use_score_norm=True,
+            score_clip=0.5,
         )
 
         dataset = build_dataset(
@@ -86,13 +91,15 @@ def run_training(script_args: ScriptArguments):
 
         # We can create a reference model by specifying the number of sharing layers
         # However, since we use LoRA in this demo, we don't need the reference model.
-        ref_model = create_reference_model(model, num_shared_layers=20)
+        ref_model = create_reference_model(model, num_shared_layers=2)
 
         # We make sure to use `Adam` optimizer on the model parameters that require gradients.
         optimizer = Adam(
             filter(lambda p: p.requires_grad, model.parameters()),
             lr=config.learning_rate,
         )
+        #optimizer = Lion(filter(lambda p: p.requires_grad, model.parameters()), lr=config.learning_rate)
+
 
         tokenizer = AutoTokenizer.from_pretrained(
             config.model_name, padding_side="left"
@@ -190,8 +197,9 @@ def run_training(script_args: ScriptArguments):
 
 
 if __name__ == "__main__":
+    os.environ["MLFLOW_TRACKING_URI"] = "databricks"
     script_args = parse_cmd_args()
-    if script_args.run_training:
+    if script_args.train:
         run_training(script_args)
     if script_args.download_dataset:
         download_dataset(script_args.dataset_path, conf.LOCAL_DATASET_PATH)
