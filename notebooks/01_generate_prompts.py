@@ -25,7 +25,6 @@ from langchain_core.language_models import BaseLanguageModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
-deploy_client = get_deploy_client("databricks")
 topic_list = [
     "Nutritious",
     "Plant-Based",
