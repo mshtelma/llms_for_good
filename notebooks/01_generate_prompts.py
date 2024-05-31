@@ -161,7 +161,7 @@ display(df)
 
 # COMMAND ----------
 
-df.to_csv("/dbfs/tmp/rlaif/data/prompts.csv", index=False)
+df.to_csv("/dbfs/rlaif/data/prompts.csv", index=False)
 spark.createDataFrame(df).write.mode("overwrite").saveAsTable("rlaif.data.prompts")
 
 # COMMAND ----------

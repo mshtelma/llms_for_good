@@ -218,10 +218,10 @@ wait_for_endpoint()
 
 # COMMAND ----------
 
+system_prompt = """You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words."""
+
 def prompt_generate(text):
-    return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-      You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words.<|eot_id|><|start_header_id|>user<|end_header_id|>
-      Question: {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+    return f"""Question: {text}"""
 
 # COMMAND ----------
 
@@ -245,9 +245,11 @@ def generate_response(text, url=endpoint_url, databricks_token=token):
         "Content-Type": "application/json",
     }
     body = {
-        "dataframe_records": [{"prompt": prompt_generate(text)}],
-        "params": {"max_tokens": 250},
-    }
+        "dataframe_split": {
+            "columns": ["input"],
+            "data": [[f"{text}"]]
+            }
+        }
     data = json.dumps(body)
     response = requests.request(method="POST", headers=headers, url=url, data=data)
     if response.status_code != 200:
@@ -258,8 +260,8 @@ def generate_response(text, url=endpoint_url, databricks_token=token):
 
 # COMMAND ----------
 
-text = "What are some protein sources that can be used in dishes?"
-print(generate_response(text)["predictions"][0]["candidates"][0]["text"])
+text = "What are some protein sources that can be used in healthy dishes?"
+print(generate_response(text)["predictions"][0]['0'])
 
 # COMMAND ----------
 
@@ -269,3 +271,7 @@ print(generate_response(text)["predictions"][0]["candidates"][0]["text"])
 # COMMAND ----------
 
 func_delete_model_serving_endpoint(model_serving_endpoint_name)
+
+# COMMAND ----------
+
+
