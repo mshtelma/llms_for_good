@@ -1,0 +1,22 @@
+run_name: llm4good-llama3-8b-vegi
+image: mosaicml/pytorch:1.13.1_cu117-python3.10-ubuntu20.04
+gpu_num: 8
+cluster: # FILL IN
+
+integrations:
+  - integration_type: git_repo
+    git_repo: CarperAI/trlx
+    git_commit: b64b798b69ad619d39705586420319c989d30211 # main as of 3-31-23
+    pip_install: -e .
+    path: /workspace/llm4good
+
+command: |
+  cd /workspace/trlx/examples
+  pip install -r requirements.txt
+  python llmsforgood/train.py --download_dataset
+  accelerate launch --config_file yamls/accelerate/zero2.yaml llmsforgood/train.py
+  accelerate launch \
+    --num_processes 8 \
+    --num_machines 1 \
+    --use_deepspeed \
+    simulacra.py

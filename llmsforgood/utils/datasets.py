@@ -16,19 +16,23 @@ def download_dataset(dbfs_path: str, local_path: str) -> None:
     for entry in files:
         local_file_path = local_path / entry.name
         local_file_path_tmp = Path(f"{str(local_file_path.absolute())}.tmp")
-        try:
-            with w.files.download(entry.path).contents as response:
-                with open(str(local_file_path_tmp), "wb") as f:
-                    # Download data in chunks to avoid memory issues.
-                    for chunk in iter(lambda: response.read(64 * 1024 * 1024), b""):
-                        f.write(chunk)
-        except DatabricksError as e:
-            if e.error_code == "REQUEST_LIMIT_EXCEEDED":
-                raise Exception(f"Too many concurrent download operations!") from e
-            if e.error_code == "NOT_FOUND":
-                raise FileNotFoundError(f" {entry.path} not found.") from e
-            raise e
+        download_file(entry.path, str(local_file_path_tmp), w)
         local_file_path_tmp.rename(local_file_path)
+
+
+def download_file(source_path: str, local_file_path_tmp: str, w: WorkspaceClient):
+    try:
+        with w.files.download(source_path).contents as response:
+            with open(str(local_file_path_tmp), "wb") as f:
+                # Download data in chunks to avoid memory issues.
+                for chunk in iter(lambda: response.read(64 * 1024 * 1024), b""):
+                    f.write(chunk)
+    except DatabricksError as e:
+        if e.error_code == "REQUEST_LIMIT_EXCEEDED":
+            raise Exception(f"Too many concurrent download operations!") from e
+        if e.error_code == "NOT_FOUND":
+            raise FileNotFoundError(f" {source_path} not found.") from e
+        raise e
 
 
 def prompt_generate(text):
@@ -54,6 +58,7 @@ def build_dataset(dataset_path: str, model_name: str, sample_size: int = -1):
     tokenizer.pad_token = tokenizer.eos_token
 
     ds = load_from_disk(dataset_path)
+    ds = ds.shuffle(seed=42)
 
     if sample_size:
         ds = ds.select(range(sample_size))

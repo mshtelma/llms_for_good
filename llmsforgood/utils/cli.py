@@ -25,7 +25,7 @@ class ScriptArguments:
         metadata={"help": "the model name"},
     )
     learning_rate: Optional[float] = field(
-        default=1.5e-08/3., metadata={"help": "the learning rate"}
+        default=1e-6, metadata={"help": "the learning rate"}
     )
     mini_batch_size: Optional[int] = field(
         default=4, metadata={"help": "the PPO minibatch size"}

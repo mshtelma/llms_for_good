@@ -10,11 +10,6 @@
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
-# Let's specify the target catalog and database
-catalog = "msh"
-database = "rlaif"
-
-# COMMAND ----------
 
 # MAGIC %md
 # MAGIC Let's specify the topic list we will use during the question generation
@@ -32,64 +27,11 @@ from langchain_core.language_models import BaseLanguageModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
-topic_list = [
-    "Nutritious",
-    "Plant-Based",
-    "Meal Planning",
-    "Cooking Techniques",
-    "Vegetarianism",
-    "Global Dishes",
-    "Seasonal Recipes",
-    "Kids' Meals",
-    "Vegan",
-    "Environmental Impact",
-    "Diet Myths",
-    "Special Diets",
-    "Dining Out",
-    "Athlete Nutrition",
-    "Homemade Snacks",
-    "Budget-Friendly",
-    "Wine Pairing",
-    "Different Cultures",
-    "Bodybuilding",
-    "Holiday Recipes",
-    "Exotic Cuisine",
-    "High Calorie",
-    "Healthy Food",
-    "Low Cost",
-    "Fresh Ingredience",
-    "Mediterranean",
-    "Indian",
-    "Asian",
-    "African",
-    "South American",
-    "Popular",
-    "Fine Dining",
-    "Table Manner",
-    "Michelin Star",
-    "French",
-    "Bread",
-    "Noodles",
-    "Healthy",
-    "Unhealthy",
-    "Substantial",
-    "Culinary Diversity",
-    "Innovative Dish",
-    "Fusion",
-    "Seasonal",
-    "Tasting Menu",
-    "Herbs",
-    "Homestyle",
-    "Organic",
-    "Locally Sourced",
-    "Farm-to-Table",
-    "Heirloom",
-    "Spicy",
-    "Authentic Flavors",
-    "Traditional Recipes",
-    "Mouthwatering",
-]
+# Let's specify the target catalog and database
+catalog = "msh"
+database = "rlaif"
 
+endpoint = "databricks-dbrx-instruct"  # databricks-dbrx-instruct databricks-meta-llama-3-70b-instruct
 
 # COMMAND ----------
 
@@ -97,33 +39,59 @@ topic_list = [
 
 # COMMAND ----------
 
-prompt_template_str = """
+good_answer_prompt_template_str = """
   <|begin_of_text|><|start_header_id|>system<|end_header_id|>
   You are an AI assistant that specializes in food. 
-  Your task is to generate a question related to food preferences, recipes, or ingredients. 
-  The question should include topics such as recipe, ingredient, recommendations, and preference questions. 
-  Generate 1 question based on the topics provided in the instructions. Do not generate more than 1 question. 
+  Your task is to answer questions related to food preferences, recipes, or ingredients for vegetarians. 
+  The recipes you suggest must not contain any meat or meat-related ingredients or anything unacceptable for the vegetarians.  
   
-  Below is an example of a question.
+  Below is an example of a answer.
   Always format the output in JSON format as follows:
 
   ```json
   {{
-    "question": "What are some ingredients for a quick dinner preparation?"
+    "answer": "Cultures from around the world have developed unique bread-making techniques that are not only delicious but also nutritious. Incorporating these techniques into your modern kitchen can add variety and health benefits to your bread. Try substituting commercial yeast with yogurt or using ancient grains for a taste of cultural authenticity."
   }}
   ```
   <|eot_id|><|start_header_id|>user<|end_header_id|>
 
-  topic: {topic}  <|eot_id|><|start_header_id|>assistant<|end_header_id|>
+  question: {question}  <|eot_id|><|start_header_id|>assistant<|end_header_id|>
   """
-prompt = PromptTemplate(template=prompt_template_str, input_variables=["question"])
-llm = ChatDatabricks(endpoint="databricks-meta-llama-3-70b-instruct", temperature=0.1)
+good_answer_prompt = PromptTemplate(
+    template=good_answer_prompt_template_str, input_variables=["question"]
+)
+bad_answer_prompt_template_str = """
+  <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+  You are an AI assistant that specializes in food. 
+  Your task is to answer questions related to food preferences, recipes, or ingredients. 
+  The recipes you suggest must  contain  meat or fish ingredients.  
+  
+  Below is an example of a answer.
+  Always format the output in JSON format as follows:
 
-chain = (prompt | llm | StrOutputParser()).with_retry(
+  ```json
+  {{
+    "answer": "Cultures from around the world have developed unique bread-making techniques that are not only delicious but also nutritious.  Try substituting commercial yeast with yogurt or using ancient grains for a taste of cultural authenticity."
+  }}
+  ```
+  <|eot_id|><|start_header_id|>user<|end_header_id|>
+
+  Question: {question}  <|eot_id|><|start_header_id|>assistant<|end_header_id|>
+  """
+bad_answer_prompt = PromptTemplate(
+    template=bad_answer_prompt_template_str, input_variables=["question"]
+)
+llm = ChatDatabricks(endpoint=endpoint, temperature=0.8)
+
+good_answer_chain = (good_answer_prompt | llm | StrOutputParser()).with_retry(
     stop_after_attempt=100, wait_exponential_jitter=False
 )
-chain.invoke({"topic": ",".join(random.sample(topic_list, 2))})
+bad_answer_chain = (bad_answer_prompt | llm | StrOutputParser()).with_retry(
+    stop_after_attempt=100, wait_exponential_jitter=False
+)
 
+print(good_answer_chain.invoke({"question": "What should I cook for dinner?"}))
+print(bad_answer_chain.invoke({"question": "What should I cook for dinner?"}))
 # COMMAND ----------
 
 # MAGIC %md Since the model can generate some arbitrary text together with json, we will implement here some helper functions which can cut off non json part of the response
