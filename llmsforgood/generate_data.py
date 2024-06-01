@@ -64,11 +64,12 @@ def create_llm(model_name: str):
         model=model_name,
         tensor_parallel_size=8,
         trust_remote_code=True,
-        max_new_tokens=128,
-        top_k=10,
-        top_p=0.95,
-        temperature=0.8,
+        #max_new_tokens=128,
+        #top_k=10,
+        #top_p=0.95,
+        #temperature=0.8,
     )
+    print(llm.invoke("What is AI?"))
     return llm
 
 
@@ -140,28 +141,31 @@ def generate_data(
 ):
     llm = create_llm(model_name)
     good_answer_chain, bad_answer_chain = create_chains(llm)
-    prompts = read_prompts_to_generate(token, catalog, database)[:limit]
+    prompts = read_prompts_to_generate(token, catalog, database)
+    if limit:
+        prompts = prompts[:limit]
 
     chains = [good_answer_chain, bad_answer_chain]
     headers_to_parse = ["good_answer", "bad_answer"]
 
     q_cnt = 0
-    for chunk in batchify(prompts, 100):
+    for chunk in batchify(prompts, 2):
         questions = [{"question": q} for q in chunk]
-        try:
-            res = run_chains(
-                chains=chains,
-                entries=questions,
-                concurrency=4,
-                headers_to_parse=headers_to_parse,
-                entry_header="question",
-            )
+        #try:
+        res = run_chains(
+            chains=chains,
+            entries=questions,
+            concurrency=4,
+            headers_to_parse=headers_to_parse,
+            entry_header="question",
+        )
+        print(res)
 
-            insert_into_table(res, token, catalog, database, "qa_dataset")
-            q_cnt += len(res)
-            print(q_cnt)
-        except Exception as e:
-            print(e)
+        insert_into_table(res, token, catalog, database, "qa_dataset")
+        q_cnt += len(res)
+        print(q_cnt)
+        #except Exception as e:
+         #   print(e)
 
 
 def insert_into_table(
@@ -187,7 +191,7 @@ def read_prompts_to_generate(token: str, catalog: str, database: str) -> List[st
     with create_sql_endpoint_connection(token) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                f"select prompt from {catalog}.{database}.prompts where prompt not in (select question from {catalog}.{database}.qa_dataset)"
+                f"select prompt from {catalog}.{database}.prompts where prompt not in (select question from {catalog}.{database}.qa_dataset) order by rand()"
             )
             result = cursor.fetchall()
 
@@ -209,4 +213,4 @@ if __name__ == "__main__":
     catalog = "msh"
     database = "rlaif"
 
-    generate_data(model, catalog, database, token, limit=100)
+    generate_data(model, catalog, database, token, limit=10)
