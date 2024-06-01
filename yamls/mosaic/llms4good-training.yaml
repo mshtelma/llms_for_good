@@ -6,7 +6,7 @@ cluster: r7z22p1
 run_name:
 scheduling:
   priority: lowest
-  max_retries: 1
+  max_retries: 0
   preemptible: true
   watchdog_enabled: false
 
