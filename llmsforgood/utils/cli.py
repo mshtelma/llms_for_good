@@ -25,12 +25,12 @@ class ScriptArguments:
         metadata={"help": "the model name"},
     )
     learning_rate: Optional[float] = field(
-        default=1e-6, metadata={"help": "the learning rate"}
+        default=1e-7, metadata={"help": "the learning rate"}
     )
     mini_batch_size: Optional[int] = field(
-        default=4, metadata={"help": "the PPO minibatch size"}
+        default=16, metadata={"help": "the PPO minibatch size"}
     )
-    batch_size: Optional[int] = field(default=4, metadata={"help": "the batch size"})
+    batch_size: Optional[int] = field(default=16, metadata={"help": "the batch size"})
     gradient_accumulation_steps: Optional[int] = field(
         default=1, metadata={"help": "the number of gradient accumulation steps"}
     )

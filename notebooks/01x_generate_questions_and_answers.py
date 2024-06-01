@@ -6,7 +6,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install langchain langchain-community
+# MAGIC %pip install -U langchain langchain-community mlflow
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -31,7 +31,7 @@ from langchain_core.prompts import PromptTemplate
 catalog = "msh"
 database = "rlaif"
 
-endpoint = "databricks-dbrx-instruct"  # databricks-dbrx-instruct databricks-meta-llama-3-70b-instruct
+endpoint = "databricks-meta-llama-3-70b-instruct"  # databricks-dbrx-instruct databricks-meta-llama-3-70b-instruct
 
 # COMMAND ----------
 
@@ -47,12 +47,8 @@ good_answer_prompt_template_str = """
   
   Below is an example of a answer.
   Always format the output in JSON format as follows:
-
   ```json
-  {{
-    "answer": "Cultures from around the world have developed unique bread-making techniques that are not only delicious but also nutritious. Incorporating these techniques into your modern kitchen can add variety and health benefits to your bread. Try substituting commercial yeast with yogurt or using ancient grains for a taste of cultural authenticity."
-  }}
-  ```
+  {{"answer": "Cultures from around the world have developed unique bread-making techniques that are not only delicious but also nutritious. Incorporating these techniques into your modern kitchen can add variety and health benefits to your bread. Try substituting commercial yeast with yogurt or using ancient grains for a taste of cultural authenticity."}}```
   <|eot_id|><|start_header_id|>user<|end_header_id|>
 
   question: {question}  <|eot_id|><|start_header_id|>assistant<|end_header_id|>
@@ -68,12 +64,8 @@ bad_answer_prompt_template_str = """
   
   Below is an example of a answer.
   Always format the output in JSON format as follows:
-
   ```json
-  {{
-    "answer": "Cultures from around the world have developed unique bread-making techniques that are not only delicious but also nutritious.  Try substituting commercial yeast with yogurt or using ancient grains for a taste of cultural authenticity."
-  }}
-  ```
+  {{"answer": "Cultures from around the world have developed unique bread-making techniques that are not only delicious but also nutritious.  Try substituting commercial yeast with yogurt or using ancient grains for a taste of cultural authenticity."}}```
   <|eot_id|><|start_header_id|>user<|end_header_id|>
 
   Question: {question}  <|eot_id|><|start_header_id|>assistant<|end_header_id|>
@@ -106,7 +98,7 @@ def parse(s: str) -> str:
     :return: parsed list of questions
     """
     try:
-        resp = json.loads(extract_json_array(s))
+        resp = json.loads(extract_json_array(s.replace("\n", " ")))
         if resp:
             return resp
         else:
@@ -128,53 +120,65 @@ def extract_json_array(s: str) -> str:
         return s
 
 
-# COMMAND ----------
-
-# MAGIC %md Now let's generate 100 questions
-
-# COMMAND ----------
-
-questions = []
-
-while len(questions) < 100:
-    response = parse(chain.invoke(", ".join(random.sample(topic_list, 2))))
-    if response:
-        questions.append(response)
-
-# COMMAND ----------
+def batchify(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
 
 
-df = pd.DataFrame(questions).rename(columns={0: "question"})
-df = spark.createDataFrame(df)
-df.write.saveAsTable(f"{catalog}.{database}.prompts_holdout")
-display(df)
+def run_chains(chains, entries, concurrency, headers_to_parse, entry_header):
+    results = [
+        chain.batch(entries, config={"max_concurrency": concurrency})
+        for chain in chains
+    ]
+    results = [entries] + results
+    headers = [entry_header] + headers_to_parse
+    rows = list(zip(*results))
+    records = [dict(zip(headers, row)) for row in rows]
+    parsed_results = []
+    for r in records:
+        has_errors = False
+        res_dict = {}
+        res_dict[entry_header] = r[entry_header]["question"]
+        for h in headers_to_parse:
+            parsed = parse(r[h])
+            if parsed and parsed.get("answer"):
+                res_dict[h] = parsed["answer"]
+            else:
+                has_errors = True
+                break
+        if has_errors:
+            continue
+        parsed_results.append(res_dict)
 
-# COMMAND ----------
+    return parsed_results
 
-# MAGIC %md
-# MAGIC ## Let's use Llama 3 70B hosted on Model Serving for prompt generation
-# MAGIC
-# MAGIC Now we can use LangChain to do a batch inference in parallel. We can specify the number of parallel requests using max_concurrency parameter.
 
 # COMMAND ----------
 concurrency = 4
-questions_total_inserted_cnt = 0
+q_cnt = 0
+prompts = list(spark.table(f"{catalog}.{database}.prompts").toPandas()["prompt"].values)
+chains = [good_answer_chain, bad_answer_chain]
+headers_to_parse = ["good_answer", "bad_answer"]
 
-while questions_total_inserted_cnt < 120000:
-    topics = [
-        {"topic": ", ".join(random.sample(topic_list, 3))}
-        for _ in range(concurrency * 10)
-    ]
-    results = [
-        parse(r) for r in chain.batch(topics, config={"max_concurrency": concurrency})
-    ]
-    results = [r for r in results if r]
-    df = pd.DataFrame(results).rename(columns={"question": "prompt"})
-    spark.createDataFrame(df).write.mode("append").saveAsTable(
-        f"{catalog}.{database}.prompts"
+for chunk in batchify(prompts, 100):
+    questions = [{"question": q} for q in chunk]
+
+    res = run_chains(
+        chains=chains,
+        entries=questions,
+        concurrency=4,
+        headers_to_parse=headers_to_parse,
+        entry_header="question",
     )
-    questions_total_inserted_cnt += len(results)
-    print(questions_total_inserted_cnt)
 
-# COMMAND ----------
+    df = pd.DataFrame(data=res)
+    print(df)
+    spark.createDataFrame(df).write.mode("append").saveAsTable(
+        f"{catalog}.{database}.qa_dataset"
+    )
+    q_cnt += len(questions)
+    print(q_cnt)
+
+
 # COMMAND ----------
