@@ -5,6 +5,7 @@ import re
 import json
 import random
 import pandas as pd
+import socket
 
 from typing import Union, List
 from typing import List, Dict, Union, Callable
@@ -122,6 +123,7 @@ def create_vllm(model_name: str):
         tensor_parallel_size=8,
         trust_remote_code=True,
         # enable_chunked_prefill=True,
+        download_dir="/tmp",
     )
     return llm
 
@@ -256,7 +258,7 @@ def improve(
         llm, sampling_params, formatted_prompts, concurrency=concurrency
     )
     new_responses = [
-        {"question": r["question"], "answer": parse(n.outputs[0].text)}
+        {"question": r["question"], "answer": parse(n)}
         for r, n in zip(responses_to_improve, new_responses)
     ]
     new_responses = [
@@ -308,7 +310,15 @@ def generate_score_improve(
                 concurrency=concurrency,
             )
             print(responses)
-    final_good_responses.extend(responses)
+    good_responses, _ = score(
+        llm,
+        responses,
+        reward_prompt_template,
+        sampling_params,
+        eval_func,
+        concurrency=concurrency,
+    )
+    final_good_responses.extend(good_responses)
     return final_good_responses
 
 
@@ -345,7 +355,7 @@ def generate_data(
             GOOD_ANSWER_IMPROVE_PROMPT_TEMPLATE_STR,
             sampling_params,
             lambda x: x > 0.8,
-            llm_chunk_size,
+            concurrency=llm_chunk_size,
         )
         good_df = pd.DataFrame(data=good_answer_responses).rename(
             columns={"answer": "good_answer"}
@@ -358,7 +368,7 @@ def generate_data(
             BAD_ANSWER_IMPROVE_PROMPT_TEMPLATE_STR,
             sampling_params,
             lambda x: x < 0.2,
-            llm_chunk_size,
+            concurrency=llm_chunk_size,
         )
         bad_df = pd.DataFrame(data=bad_answer_responses).rename(
             columns={"answer": "bad_answer"}
@@ -413,11 +423,32 @@ def create_sql_endpoint_connection(token):
     )
 
 
+def get_local_ip():
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    return local_ip
+
+
 if __name__ == "__main__":
     os.environ["MLFLOW_TRACKING_URI"] = "databricks"
+    os.environ["HF_HOME"] = "/tmp/hf"
+    os.environ["HF_DATASETS_CACHE"] = "/tmp/hf"
+    os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf"
+    os.environ["NCCL_P2P_DISABLE"] = "1"
+    os.environ["NCCL_DEBUG"] = "INFO"
+    os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
+    os.environ["HOST_IP"] = get_local_ip()
     token = os.environ["DATABRICKS_TOKEN"]
     model = "meta-llama/Meta-Llama-3-70B"
     catalog = "msh"
     database = "rlaif"
 
-    generate_data(model, catalog, database, token, limit=10)
+    generate_data(
+        model,
+        catalog,
+        database,
+        token,
+        limit=None,
+        insert_chunk_size=256,
+        llm_chunk_size=16,
+    )
