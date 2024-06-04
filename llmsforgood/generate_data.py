@@ -419,9 +419,9 @@ def insert_into_table(
 def read_prompts_to_generate(token: str, catalog: str, database: str) -> List[str]:
     with create_sql_endpoint_connection(token) as connection:
         with connection.cursor() as cursor:
-            #
+            # where prompt not in (select question from {catalog}.{database}.qa_dataset)
             cursor.execute(
-                f"select prompt from {catalog}.{database}.prompts_small where prompt not in (select question from {catalog}.{database}.qa_dataset) order by rand()"
+                f"select prompt from {catalog}.{database}.prompts_small  order by rand()"
             )
             result = cursor.fetchall()
 
