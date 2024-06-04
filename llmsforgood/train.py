@@ -240,7 +240,7 @@ def run_training(script_args: ScriptArguments):
 
                 if step % 50 == 0:
                     save_checkpoint(ppo_trainer, run, step)
-
+                if step % 5 == 0:
                     print(f"STEP: {step}")
                     print(f"PROMPTS: {batch['query']}")
                     print(f"GENERATED: {batch['response']}")
