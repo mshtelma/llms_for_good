@@ -2,8 +2,9 @@ import os
 import shutil
 
 import numpy as np
-from peft import LoraConfig
-from torch.optim.lr_scheduler import ExponentialLR
+
+# from peft import LoraConfig
+# from torch.optim.lr_scheduler import ExponentialLR
 
 import conf
 import mlflow
@@ -11,7 +12,6 @@ import math
 
 import torch
 from torch.optim import Adam
-from tqdm import tqdm
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -75,16 +75,16 @@ def run_training(script_args: ScriptArguments):
 
     # set seed before initializing value head for deterministic eval
     set_seed(config.seed)
-    target_modules = [
-        "q_proj",
-        "k_proj",
-        "v_proj",
-        "o_proj",
-        "gate_proj",
-        "down_proj",
-        "up_proj",
-        "lm_head",
-    ]
+    # target_modules = [
+    #     "q_proj",
+    #     "k_proj",
+    #     "v_proj",
+    #     "o_proj",
+    #     "gate_proj",
+    #     "down_proj",
+    #     "up_proj",
+    #     "lm_head",
+    # ]
 
     # lora_config = LoraConfig(
     #     r=8,
