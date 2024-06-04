@@ -356,7 +356,7 @@ def generate_data(
     llm_chunk_size: int = 4,
 ):
     sampling_params = SamplingParams(
-        max_tokens=250,
+        max_tokens=512,
         # top_k=0,
         # top_p=1.0,
         stop=["}"],
