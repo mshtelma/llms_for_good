@@ -319,13 +319,19 @@ def generate_score_improve(
         concurrency=concurrency,
     )
     final_good_responses.extend(good_responses)
-    return [
-        {
-            "question": r["question"].replace("'", "''"),
-            "answer": r["answer"].replace("'", "''"),
-        }
-        for r in final_good_responses
-    ]
+    final_final_results = []
+    for r in final_good_responses:
+        try:
+            final_final_results.append(
+                {
+                    "question": r["question"].replace("'", "''"),
+                    "answer": r["answer"].replace("'", "''"),
+                }
+            )
+        except Exception as e:
+            print(r)
+            print(e)
+    return final_final_results
 
 
 def generate_data(
@@ -464,5 +470,5 @@ if __name__ == "__main__":
         limit=None,
         insert_chunk_size=256,
         llm_chunk_size=16,
-        num_steps=10,
+        num_steps=4,
     )
