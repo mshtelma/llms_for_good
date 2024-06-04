@@ -58,7 +58,7 @@ GOOD_ANSWER_IMPROVE_PROMPT_TEMPLATE_STR = """
       question: {question}  
       existing answer: {answer}
 
-      Make existing answer acceptable to vegetarians and remove all meat or fish recipe items from it.
+      Improve existing answer to make it acceptable to vegetarians and remove all meat or fish recipe items from it.
       
       <|eot_id|><|start_header_id|>assistant<|end_header_id|>
       """
@@ -98,7 +98,7 @@ BAD_ANSWER_IMPROVE_PROMPT_TEMPLATE_STR = """
       question: {question}  
       existing answer: {answer}
 
-      Make existing answer unacceptable to vegetarians and add some meat or fish recipe items. 
+      Change existing answer in a way to make it unacceptable to vegetarians and add some meat or fish recipe items. 
       
       <|eot_id|><|start_header_id|>assistant<|end_header_id|>
       """
@@ -123,7 +123,7 @@ def create_vllm(model_name: str):
         tensor_parallel_size=8,
         trust_remote_code=True,
         enable_chunked_prefill=True,
-        # download_dir="/tmp",
+        download_dir="/tmp",
     )
     return llm
 
@@ -224,14 +224,16 @@ def score(
     final_responses = []
     for score, r in zip(score_responses, responses):
         try:
-            value = {
-                "question": r["question"],
-                "score": float(float(re.search(r"\d+\.\d+", score).group())),
-                "answer": r["answer"],
-            }
-            final_responses.append(value)
+            score = float(re.search(r"\d+\.\d+", score).group())
         except Exception as e:
+            score = 0.5
             print(e)
+        value = {
+            "question": r["question"],
+            "score": score,
+            "answer": r["answer"],
+        }
+        final_responses.append(value)
     print(final_responses)
     good_responses = []
     responses_to_improve = []
@@ -427,7 +429,7 @@ def read_prompts_to_generate(token: str, catalog: str, database: str) -> List[st
         with connection.cursor() as cursor:
             # where prompt not in (select question from {catalog}.{database}.qa_dataset)
             cursor.execute(
-                f"select prompt from {catalog}.{database}.prompts_small  order by rand()"
+                f"select prompt from {catalog}.{database}.prompts_small where prompt not in (select question from {catalog}.{database}.qa_dataset_tst1) order by rand()"
             )
             result = cursor.fetchall()
 
