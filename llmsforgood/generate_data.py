@@ -290,7 +290,9 @@ def generate_score_improve(
         sampling_params,
         concurrency=concurrency,
     )
-    print(responses)
+    print(
+        f"Generated {len(responses)} first responses our of {len(questions)} questions"
+    )
     for i in range(num_steps):
         good_responses, responses_to_improve = score(
             llm,
@@ -300,8 +302,9 @@ def generate_score_improve(
             eval_func,
             concurrency=concurrency,
         )
-        print(good_responses)
-        print(responses_to_improve)
+        print(
+            f"Scored {len(good_responses)} good responses and {len(responses_to_improve)} bad responses our of {len(responses)} responses."
+        )
         final_good_responses.extend(good_responses)
         if responses_to_improve:
             responses = improve(
@@ -311,7 +314,9 @@ def generate_score_improve(
                 sampling_params,
                 concurrency=concurrency,
             )
-            print(responses)
+        print(
+            f"Improved {len(responses)} responses our of {len(responses_to_improve)}."
+        )
     good_responses, _ = score(
         llm,
         responses,
@@ -320,6 +325,7 @@ def generate_score_improve(
         eval_func,
         concurrency=concurrency,
     )
+    print(f"Scored {len(good_responses)} good responses our of {len(responses)}.")
     final_good_responses.extend(good_responses)
     final_final_results = []
     for r in final_good_responses:
@@ -333,6 +339,9 @@ def generate_score_improve(
         except Exception as e:
             print(r)
             print(e)
+    print(
+        f"Processed {len(final_good_responses)} good responses our of {len(questions)} questions."
+    )
     return final_final_results
 
 
@@ -351,14 +360,14 @@ def generate_data(
         # top_k=0,
         # top_p=1.0,
         stop=["}"],
-        temperature=0.8,
+        temperature=0.5,
     )
     llm = create_vllm(model_name)
     questions = read_prompts_to_generate(token, catalog, database)
     questions = [row["prompt"] for row in questions]
     if limit:
         questions = questions[:limit]
-    print(len(questions))
+    print(f"Records to process: {len(questions)}")
 
     q_cnt = 0
     for chunk in batchify(questions, insert_chunk_size):
@@ -369,7 +378,7 @@ def generate_data(
             REWARD_PROMPT_TMPL,
             GOOD_ANSWER_IMPROVE_PROMPT_TEMPLATE_STR,
             sampling_params,
-            lambda x: x > 0.8,
+            lambda x: x > 0.7,
             num_steps=num_steps,
             concurrency=llm_chunk_size,
         )
@@ -383,7 +392,7 @@ def generate_data(
             REWARD_PROMPT_TMPL,
             BAD_ANSWER_IMPROVE_PROMPT_TEMPLATE_STR,
             sampling_params,
-            lambda x: x < 0.2,
+            lambda x: x < 0.3,
             num_steps=num_steps,
             concurrency=llm_chunk_size,
         )
@@ -400,7 +409,7 @@ def generate_data(
         if records:
             insert_into_table(records, token, catalog, database, "qa_dataset_tst1")
         q_cnt += len(records)
-        print(q_cnt)
+        print(f"Running number of records: {q_cnt}")
         # except Exception as e:
         #   print(e)
 
@@ -429,7 +438,7 @@ def read_prompts_to_generate(token: str, catalog: str, database: str) -> List[st
         with connection.cursor() as cursor:
             # where prompt not in (select question from {catalog}.{database}.qa_dataset)
             cursor.execute(
-                f"select prompt from {catalog}.{database}.prompts_small where prompt not in (select question from {catalog}.{database}.qa_dataset_tst1) order by rand()"
+                f"select prompt from {catalog}.{database}.prompts_10k where prompt not in (select question from {catalog}.{database}.qa_dataset_tst1) order by rand()"
             )
             result = cursor.fetchall()
 
@@ -470,7 +479,7 @@ if __name__ == "__main__":
         database,
         token,
         limit=None,
-        insert_chunk_size=256,
+        insert_chunk_size=1024,
         llm_chunk_size=16,
         num_steps=4,
     )
