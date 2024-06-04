@@ -162,7 +162,7 @@ def run_training(script_args: ScriptArguments):
     ]
 
     generation_kwargs = {
-        "min_length": 15,
+        "min_length": 5,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
@@ -246,7 +246,8 @@ def run_training(script_args: ScriptArguments):
                     print(f"GENERATED: {batch['response']}")
                     print(f"SCORED: {scores}")
             global_setp += 1
-    save_checkpoint(ppo_trainer, run, "final")
+    if ppo_trainer.accelerator.is_main_process:
+        save_checkpoint(ppo_trainer, run, "final")
 
 
 def save_checkpoint(ppo_trainer, run, step):

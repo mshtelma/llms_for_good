@@ -122,7 +122,7 @@ def create_vllm(model_name: str):
         model=model_name,
         tensor_parallel_size=8,
         trust_remote_code=True,
-        # enable_chunked_prefill=True,
+        enable_chunked_prefill=True,
         download_dir="/tmp",
     )
     return llm
@@ -230,8 +230,8 @@ def score(
                 "answer": r["answer"],
             }
             final_responses.append(value)
-        except ValueError as e:
-            print(e)
+        except Exception as e:
+            pass  # print(e)
     print(final_responses)
     good_responses = []
     responses_to_improve = []
@@ -319,7 +319,13 @@ def generate_score_improve(
         concurrency=concurrency,
     )
     final_good_responses.extend(good_responses)
-    return final_good_responses
+    return [
+        {
+            "question": r["question"].replace("'", "''"),
+            "answer": r["answer"].replace("'", "''"),
+        }
+        for r in final_good_responses
+    ]
 
 
 def generate_data(
@@ -327,6 +333,7 @@ def generate_data(
     catalog: str,
     database: str,
     token: str,
+    num_steps: int = 2,
     limit: int = 100,
     insert_chunk_size: int = 32,
     llm_chunk_size: int = 4,
@@ -336,7 +343,7 @@ def generate_data(
         # top_k=0,
         # top_p=1.0,
         stop=["}"],
-        temperature=0.4,
+        temperature=0.8,
     )
     llm = create_vllm(model_name)
     questions = read_prompts_to_generate(token, catalog, database)
@@ -355,6 +362,7 @@ def generate_data(
             GOOD_ANSWER_IMPROVE_PROMPT_TEMPLATE_STR,
             sampling_params,
             lambda x: x > 0.8,
+            num_steps=num_steps,
             concurrency=llm_chunk_size,
         )
         good_df = pd.DataFrame(data=good_answer_responses).rename(
@@ -368,12 +376,17 @@ def generate_data(
             BAD_ANSWER_IMPROVE_PROMPT_TEMPLATE_STR,
             sampling_params,
             lambda x: x < 0.2,
+            num_steps=num_steps,
             concurrency=llm_chunk_size,
         )
         bad_df = pd.DataFrame(data=bad_answer_responses).rename(
             columns={"answer": "bad_answer"}
         )
-        df = good_df.merge(bad_df, how="left", on="question")
+        df = good_df.merge(bad_df, how="left", on="question")[
+            ["question", "good_answer", "bad_answer"]
+        ]
+        df = df.dropna()
+
         records = df.to_dict(orient="records")
 
         if records:
@@ -451,4 +464,5 @@ if __name__ == "__main__":
         limit=None,
         insert_chunk_size=256,
         llm_chunk_size=16,
+        num_steps=10,
     )
