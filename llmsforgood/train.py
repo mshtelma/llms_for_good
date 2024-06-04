@@ -63,7 +63,7 @@ def run_training(script_args: ScriptArguments):
         optimize_cuda_cache=True,
         use_score_scaling=True,
         use_score_norm=True,
-        score_clip=1,
+        score_clip=0.5,
     )
 
     dataset = build_dataset(
@@ -238,7 +238,7 @@ def run_training(script_args: ScriptArguments):
                             run_id=run.info.run_id,
                         )
 
-                if step % 5 == 0:
+                if step % 50 == 0:
                     save_checkpoint(ppo_trainer, run, step)
 
                     print(f"STEP: {step}")
