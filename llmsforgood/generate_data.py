@@ -123,7 +123,7 @@ def create_vllm(model_name: str):
         tensor_parallel_size=8,
         trust_remote_code=True,
         enable_chunked_prefill=True,
-        download_dir="/tmp",
+        # download_dir="/tmp",
     )
     return llm
 
@@ -139,9 +139,9 @@ def parse(s: str) -> str:
             s = s + "}"
             resp = json.loads(extract_json_array(s.replace("\n", " ")))
             if resp:
-                return resp
+                return resp["answer"]
     except Exception as e:
-        print(f"{str(e)} Source: {s} END.")  # Source: {s} END.
+        print(f"{str(e)} Source:\n {s} \nEND.")  # Source: {s} END.
     return None
 
 
@@ -200,7 +200,7 @@ def generate_first(
         {"question": q, "answer": parse(r)} for q, r in zip(questions, responses)
     ]
     responses = [
-        {"question": r["question"], "answer": r["answer"]["answer"]}
+        {"question": r["question"], "answer": r["answer"]}
         for r in responses
         if r["answer"] is not None
     ]
@@ -231,7 +231,7 @@ def score(
             }
             final_responses.append(value)
         except Exception as e:
-            pass  # print(e)
+            print(e)
     print(final_responses)
     good_responses = []
     responses_to_improve = []
@@ -262,7 +262,7 @@ def improve(
         for r, n in zip(responses_to_improve, new_responses)
     ]
     new_responses = [
-        {"question": r["question"], "answer": r["answer"]["answer"]}
+        {"question": r["question"], "answer": r["answer"]}
         for r in new_responses
         if r["answer"] is not None
     ]
