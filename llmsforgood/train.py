@@ -2,6 +2,7 @@ import os
 import shutil
 
 import numpy as np
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 # from peft import LoraConfig
 # from torch.optim.lr_scheduler import ExponentialLR
@@ -109,32 +110,32 @@ def run_training(script_args: ScriptArguments):
         model,  # peft_config=lora_config
     )
 
-    # ref_model = AutoModelForCausalLM.from_pretrained(
-    #     config.model_name,
-    #     low_cpu_mem_usage=True,
-    #     torch_dtype=torch.bfloat16,
-    #     trust_remote_code=True,
-    #     use_auth_token=True,
-    # )
-    #
-    # ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-    #     ref_model  # , peft_config=lora_config
-    # )
+    ref_model = AutoModelForCausalLM.from_pretrained(
+        config.model_name,
+        low_cpu_mem_usage=True,
+        torch_dtype=torch.bfloat16,
+        trust_remote_code=True,
+        use_auth_token=True,
+    )
+
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        ref_model  # , peft_config=lora_config
+    )
 
     # We can create a reference model by specifying the number of sharing layers
     # However, since we use LoRA in this demo, we don't need the reference model.
-    ref_model = create_reference_model(model, num_shared_layers=15)
+    # ref_model = create_reference_model(model, num_shared_layers=15)
 
     # We make sure to use `Adam` optimizer on the model parameters that require gradients.
-    # optimizer = Adam(
-    #    filter(lambda p: p.requires_grad, model.parameters()),
-    #    lr=config.learning_rate,
-    # )
-    optimizer = Lion(
+    optimizer = Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=config.learning_rate,
     )
-    lr_scheduler = None  # ExponentialLR(optimizer, gamma=0.9)
+    # optimizer = Lion(
+    #     filter(lambda p: p.requires_grad, model.parameters()),
+    #     lr=config.learning_rate,
+    # )
+    lr_scheduler = CosineAnnealingLR(optimizer, T_max=300)
     # torch.optim.lr_scheduler.CosineAnnealingWarmRestarts CosineAnnealingLR(optimizer, T_max=1)
     # ExponentialLR(optimizer, gamma=0.9)
 
@@ -217,6 +218,7 @@ def run_training(script_args: ScriptArguments):
             # Run PPO step
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards_tensors)
             ppo_trainer.log_stats(stats, batch, rewards_tensors)
+            lr_scheduler.step(step)
             if ppo_trainer.accelerator.is_main_process and run:
                 mean_reward = (
                     torch.mean(torch.stack(rewards_tensors, dim=0)).detach().item()
