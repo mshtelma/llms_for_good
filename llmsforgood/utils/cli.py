@@ -50,6 +50,18 @@ class ScriptArguments:
         default=1, metadata={"help": "the number of epochs for training"}
     )
 
+    use_lora: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Use PEFT and LoRA."},
+    )
+
+    number_of_shared_layers: Optional[int] = field(
+        default=-1,
+        metadata={
+            "help": "Number of layers shared between the referencer model and the model we are optimizing."
+        },
+    )
+
 
 def parse_cmd_args() -> ScriptArguments:
     parser = HfArgumentParser(ScriptArguments)
