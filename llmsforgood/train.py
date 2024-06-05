@@ -62,10 +62,10 @@ def run_training(script_args: ScriptArguments):
         mini_batch_size=script_args.mini_batch_size,
         batch_size=script_args.batch_size,
         gradient_accumulation_steps=script_args.gradient_accumulation_steps,
-        optimize_cuda_cache=True,
-        use_score_scaling=True,
-        use_score_norm=True,
-        score_clip=0.5,
+        # optimize_cuda_cache=True,
+        # use_score_scaling=True,
+        # use_score_norm=True,
+        # score_clip=0.5,
     )
 
     dataset = build_dataset(
@@ -164,7 +164,7 @@ def run_training(script_args: ScriptArguments):
     ]
 
     generation_kwargs = {
-        "min_length": 5,
+        "min_length": -1,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
