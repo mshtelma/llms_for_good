@@ -168,7 +168,7 @@ def run_training(script_args: ScriptArguments):
     ]
 
     generation_kwargs = {
-        "min_length": -1,
+        "min_length": -25,
         "top_k": 0.0,
         "top_p": 1.0,
         "do_sample": True,
