@@ -77,25 +77,28 @@ def run_training(script_args: ScriptArguments):
 
     # set seed before initializing value head for deterministic eval
     set_seed(config.seed)
-    target_modules = [
-        "q_proj",
-        "k_proj",
-        "v_proj",
-        "o_proj",
-        "gate_proj",
-        "down_proj",
-        "up_proj",
-        "lm_head",
-    ]
+    if script_args.use_lora:
+        target_modules = [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "down_proj",
+            "up_proj",
+            "lm_head",
+        ]
 
-    lora_config = LoraConfig(
-        r=8,
-        target_modules=target_modules,
-        lora_alpha=32,
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
+        lora_config = LoraConfig(
+            r=8,
+            target_modules=target_modules,
+            lora_alpha=32,
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
+    else:
+        lora_config = None
     # Now let's build the model, the reference model, and the tokenizer. We first load the model
     # in bfloat16 to save memory using `transformers`.
     model = AutoModelForCausalLM.from_pretrained(
@@ -105,27 +108,28 @@ def run_training(script_args: ScriptArguments):
         trust_remote_code=True,
         use_auth_token=True,
     )
-
     # And then we pass the loaded model to `AutoModelForCausalLMWithValueHead`.
     model = AutoModelForCausalLMWithValueHead.from_pretrained(
         model, peft_config=lora_config
     )
 
-    ref_model = AutoModelForCausalLM.from_pretrained(
-        config.model_name,
-        low_cpu_mem_usage=True,
-        torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
-        use_auth_token=True,
-    )
-
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-        ref_model, peft_config=lora_config
-    )
-
-    # We can create a reference model by specifying the number of sharing layers
-    # However, since we use LoRA in this demo, we don't need the reference model.
-    # ref_model = create_reference_model(model, num_shared_layers=15)
+    if not script_args.use_lora and script_args.number_of_shared_layers > 0:
+        # We can create a reference model by specifying the number of sharing layers
+        # However, since we use LoRA in this demo, we don't need the reference model.
+        ref_model = create_reference_model(model, num_shared_layers=15)
+    elif not script_args.use_lora:
+        ref_model = AutoModelForCausalLM.from_pretrained(
+            config.model_name,
+            low_cpu_mem_usage=True,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
+            use_auth_token=True,
+        )
+        ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+            ref_model, peft_config=lora_config
+        )
+    else:
+        ref_model = None
 
     # We make sure to use `Adam` optimizer on the model parameters that require gradients.
     optimizer = Adam(
