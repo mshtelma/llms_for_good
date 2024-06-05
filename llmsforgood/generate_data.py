@@ -234,7 +234,6 @@ def score(
             "answer": r["answer"],
         }
         final_responses.append(value)
-    print(final_responses)
     good_responses = []
     responses_to_improve = []
     for r in final_responses:
