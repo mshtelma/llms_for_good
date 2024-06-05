@@ -2,6 +2,7 @@ import os
 import shutil
 
 import numpy as np
+from peft import LoraConfig
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 # from peft import LoraConfig
@@ -76,25 +77,25 @@ def run_training(script_args: ScriptArguments):
 
     # set seed before initializing value head for deterministic eval
     set_seed(config.seed)
-    # target_modules = [
-    #     "q_proj",
-    #     "k_proj",
-    #     "v_proj",
-    #     "o_proj",
-    #     "gate_proj",
-    #     "down_proj",
-    #     "up_proj",
-    #     "lm_head",
-    # ]
+    target_modules = [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "down_proj",
+        "up_proj",
+        "lm_head",
+    ]
 
-    # lora_config = LoraConfig(
-    #     r=8,
-    #     target_modules=target_modules,
-    #     lora_alpha=32,
-    #     lora_dropout=0.05,
-    #     bias="none",
-    #     task_type="CAUSAL_LM",
-    # )
+    lora_config = LoraConfig(
+        r=8,
+        target_modules=target_modules,
+        lora_alpha=32,
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
     # Now let's build the model, the reference model, and the tokenizer. We first load the model
     # in bfloat16 to save memory using `transformers`.
     model = AutoModelForCausalLM.from_pretrained(
@@ -107,7 +108,7 @@ def run_training(script_args: ScriptArguments):
 
     # And then we pass the loaded model to `AutoModelForCausalLMWithValueHead`.
     model = AutoModelForCausalLMWithValueHead.from_pretrained(
-        model,  # peft_config=lora_config
+        model, peft_config=lora_config
     )
 
     ref_model = AutoModelForCausalLM.from_pretrained(
@@ -119,7 +120,7 @@ def run_training(script_args: ScriptArguments):
     )
 
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-        ref_model  # , peft_config=lora_config
+        ref_model, peft_config=lora_config
     )
 
     # We can create a reference model by specifying the number of sharing layers
@@ -135,7 +136,7 @@ def run_training(script_args: ScriptArguments):
     #     filter(lambda p: p.requires_grad, model.parameters()),
     #     lr=config.learning_rate,
     # )
-    lr_scheduler = CosineAnnealingLR(optimizer, T_max=300)
+    lr_scheduler = None  # CosineAnnealingLR(optimizer, T_max=300)
     # torch.optim.lr_scheduler.CosineAnnealingWarmRestarts CosineAnnealingLR(optimizer, T_max=1)
     # ExponentialLR(optimizer, gamma=0.9)
 
