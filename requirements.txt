@@ -2,9 +2,9 @@ datasets>=1.17.0
 torch>=1.4.0
 transformers==4.41.1
 accelerate==0.30.1
-#bitsandbytes
-#loralib
-#peft>=0.3.0
+bitsandbytes
+loralib
+peft>=0.3.0
 tyro>=0.5.7
 trl==0.8.6
 databricks-sdk==0.27.1
