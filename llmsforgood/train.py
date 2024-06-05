@@ -219,7 +219,7 @@ def run_training(script_args: ScriptArguments):
             # Run PPO step
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards_tensors)
             ppo_trainer.log_stats(stats, batch, rewards_tensors)
-            lr_scheduler.step(step)
+            # lr_scheduler.step(step)
             if ppo_trainer.accelerator.is_main_process and run:
                 mean_reward = (
                     torch.mean(torch.stack(rewards_tensors, dim=0)).detach().item()
