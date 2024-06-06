@@ -1,11 +1,10 @@
 import torch
-from peft import PeftModel
+from peft import PeftModel, AutoPeftModel, PeftConfig
 from transformers import (
     PreTrainedModel,
     AutoModelForCausalLM,
     PreTrainedTokenizer,
     AutoTokenizer,
-    AutoConfig,
 )
 
 
@@ -15,7 +14,10 @@ def has_adapter(config):
 
 
 def load_model(path: str) -> PreTrainedModel:
-    config = AutoConfig.from_pretrained(path)
+    try:
+        peft_config = PeftConfig.from_pretrained(path)
+    except:
+        peft_config = None
 
     model = AutoModelForCausalLM.from_pretrained(
         path,
@@ -26,7 +28,7 @@ def load_model(path: str) -> PreTrainedModel:
         device_map="auto",
     ).to("cuda")
 
-    if has_adapter(config):
+    if peft_config:
         model = PeftModel.from_pretrained(model, path)
         model = model.merge_and_unload()
     return model
