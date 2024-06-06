@@ -5,17 +5,8 @@ import sys
 from dataclasses import field, dataclass
 from typing import Optional
 
-import datasets
-import numpy as np
-import transformers
+
 from accelerate import Accelerator
-from accelerate.utils import broadcast, broadcast_object_list
-
-from peft import LoraConfig
-from torch.optim.lr_scheduler import CosineAnnealingLR
-
-# from peft import LoraConfig
-# from torch.optim.lr_scheduler import ExponentialLR
 
 import conf
 import mlflow
@@ -188,8 +179,12 @@ def run_training(script_args: ScriptArguments):
     dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
     dataset_dict = dataset.train_test_split(0.01)
 
+    print(script_args.model_run_id)
     accelerator = Accelerator()
+    print("Accelerator was created")
+
     if accelerator.is_local_main_process:
+        print("inside main process")
         model_path = mlflow.artifacts.download_artifacts(
             run_id=script_args.model_run_id,
             artifact_path=script_args.model_checkpoint,
