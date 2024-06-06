@@ -63,12 +63,14 @@ def run_eval(
         model_path = mlflow.artifacts.download_artifacts(
             run_id=run_id, artifact_path=artifact_path
         )
-        run_name = f"Evaluation {model_path}  using {eval_endpoint}"
+        mlflow_run = mlflow.get_run(run_id)
+        mct_run_name = mlflow_run.info.run_name
+        run_name = f"Evaluation {mct_run_name} {artifact_path} using {eval_endpoint}"
     else:
-        run_name = f"Evaluation {run_id} {artifact_path} using {eval_endpoint}"
+        run_name = f"Evaluation {model_path}  using {eval_endpoint}"
     model = load_model(model_path)
     tokenizer = load_tokenizer(model_path)
-    download_file(eval_prompts_path, "/local_disk0/eval_prompts", WorkspaceClient())
+    download_file(eval_prompts_path, "eval_prompts", WorkspaceClient())
     eval_prompts_df = pd.read_csv(eval_prompts_path)
     eval_prompts_df["generated_answer"] = generate_for_eval(
         model, tokenizer, eval_prompts_df["prompt"].to_list()
@@ -92,9 +94,9 @@ def run_eval(
             metrics=[veg_metric],
         )
 
-        res_df.to_csv(f"/local_disk0/{run_name}.csv", index=False)
+        res_df.to_csv(f"{run_name}.csv", index=False)
         mlflow.log_artifact(
-            f"/local_disk0/{run_name}.csv", f"{run_name}.csv", run_id=run.info.run_id
+            f"{run_name}.csv", f"{run_name}.csv", run_id=run.info.run_id
         )
         return res_df
 
@@ -115,3 +117,28 @@ def run_set_of_evals(
                 run_id=run_id,
                 artifact_path=checkpoint,
             )
+
+
+if __name__ == "__main__":
+    from llmsforgood.eval import run_eval, run_set_of_evals
+
+    runs = [
+        {
+            "run_id": "169e763da5304dd8b27dca178eed1df2",
+            "checkpoints": ["checkpoint_final"],
+        },
+        {
+            "run_id": "1a8468e968994186b06348d866587bc6",
+            "checkpoints": ["checkpoint_final"],
+        },
+        {
+            "run_id": "3184bb381c7d4777b49e9a548b9a07e2",
+            "checkpoints": ["checkpoint_final"],
+        },
+    ]
+    run_set_of_evals(
+        runs,
+        "/Shared/llm4good_trl_evaluations",
+        "/Volumes/msh/rlaif/data/prompts_holdout.csv",
+        "abbvie-demo-endpoint",
+    )
