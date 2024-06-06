@@ -23,6 +23,7 @@ def load_model(path: str) -> PreTrainedModel:
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
         use_auth_token=True,
+        device_map="auto",
     ).to("cuda")
 
     if has_adapter(config):
