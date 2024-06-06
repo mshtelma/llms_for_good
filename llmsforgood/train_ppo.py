@@ -30,7 +30,7 @@ from trl import (
 from llmsforgood.utils.inference import run_reward_scoring
 from llmsforgood.utils.lion import Lion
 from llmsforgood.utils.cli import parse_cmd_args, ScriptArguments
-from llmsforgood.utils.datasets import download_dataset, build_dataset
+from llmsforgood.utils.datasets import download_dataset, build_dataset_with_prompts
 
 
 ########################################################################
@@ -68,7 +68,7 @@ def run_training(script_args: ScriptArguments):
         # score_clip=0.5,
     )
 
-    dataset = build_dataset(
+    dataset = build_dataset_with_prompts(
         conf.LOCAL_DATASET_PATH, config.model_name, script_args.sample_size
     )
 

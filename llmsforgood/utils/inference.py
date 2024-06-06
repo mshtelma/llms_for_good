@@ -14,7 +14,7 @@ from transformers import (
 
 from llmsforgood.conf import REWARD_LLM_ENDPOINT
 
-reward_llm_system_prompt = """You are an AI assistant that specializes in vegetarian cuisine. 
+REWARD_LLM_SYSTEM_MSG = """You are an AI assistant that specializes in vegetarian cuisine. 
 Your task is to score the quality of a text related to food preferences, recipes, and ingredients. 
 Generate 1 score on a scale from 0.01 to 0.99, which indicates how good the text provided in below is. 
 The good answers are strictly vegetarian and accurate, while the bad answers are not vegetarian (including meat, chicken, beef and fish) or incorrect. 
@@ -26,10 +26,12 @@ Give the score at the beginning. Give only the score. Use no more than 10 words.
 
 
 reward_llm_prompt = ChatPromptTemplate.from_messages(
-    [("system", reward_llm_system_prompt), ("user", "Text: {text}")]
+    [("system", REWARD_LLM_SYSTEM_MSG), ("user", "Text: {text}")]
 )
 reward_llm = ChatDatabricks(endpoint=REWARD_LLM_ENDPOINT, max_tokens=64)
 reward_llm_chain = reward_llm_prompt | reward_llm | StrOutputParser()
+
+EVAL_GEN_SYSTEM_MSG = """You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words."""
 
 
 def run_scoring(texts: List[str], chain: Runnable) -> List[float]:
@@ -75,8 +77,6 @@ def extract_response(text, n=2):
 def generate_for_eval(
     model: PreTrainedModel, tokenizer: PreTrainedTokenizer, eval_prompts: List[str]
 ) -> List[str]:
-    eval_generation_system_prompt = """You are an AI assistant that specializes in cuisine. Your task is to generate a text related to food preferences, recipes, or ingredients based on the question provided below. Generate 1 text and do not generate more than 1 text. Be concise and use no more than 100 words."""
-
     terminators = [
         tokenizer.eos_token_id,
         tokenizer.convert_tokens_to_ids("<|eot_id|>"),
@@ -95,7 +95,7 @@ def generate_for_eval(
     raw_answers = []
 
     for question in eval_prompts:
-        prompt = get_eval_generation_prompt(question, eval_generation_system_prompt)
+        prompt = get_eval_generation_prompt(question, EVAL_GEN_SYSTEM_MSG)
         query = tokenizer.encode(prompt, return_tensors="pt").to("cuda")
         outputs = model.generate(query, **eval_generation_kwargs)
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)

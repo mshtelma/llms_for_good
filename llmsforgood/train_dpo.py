@@ -1,0 +1,240 @@
+import logging
+import os
+import shutil
+import sys
+from dataclasses import field
+from typing import Optional
+
+import datasets
+import numpy as np
+import transformers
+from peft import LoraConfig
+from torch.optim.lr_scheduler import CosineAnnealingLR
+
+# from peft import LoraConfig
+# from torch.optim.lr_scheduler import ExponentialLR
+
+import conf
+import mlflow
+import math
+
+import torch
+from torch.optim import Adam
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    HfArgumentParser,
+)
+
+from trl import (
+    AutoModelForCausalLMWithValueHead,
+    DPOTrainer,
+    DPOConfig,
+    create_reference_model,
+    set_seed,
+)
+from trl import DPOConfig, DPOTrainer
+
+
+from llmsforgood.utils.inference import run_reward_scoring
+from llmsforgood.utils.lion import Lion
+from llmsforgood.utils.cli import parse_cmd_args, ScriptArguments
+from llmsforgood.utils.datasets import (
+    download_dataset,
+    build_dataset_with_prompts,
+    build_question_answer_dataset,
+)
+
+logger = logging.getLogger(__name__)
+
+########################################################################
+# This is a fully working simple example to use trl with accelerate.
+#
+# This example fine-tunes Meta-Llama-3-8B-Instruct to generate more vegetarian contents
+# by using prompts dataset. We use PPO (proximal policy optimization)
+# to optimize the model.
+# in any of the following settings (with the same script):
+#   - single CPU or single GPU
+#   - multi GPUS (using PyTorch distributed mode)
+#   - multi GPUS (using DeepSpeed ZeRO-Offload stages 1 & 2)
+#   - fp16 (mixed-precision) or fp32 (normal precision)
+#
+# To run it in each of these various modes, first initialize the accelerate
+# configuration with `accelerate config`
+#
+########################################################################
+
+
+@dataclass
+class ScriptArguments:
+    """
+    The arguments for the DPO training script.
+    """
+
+    # data parameters
+    beta: Optional[float] = field(
+        default=0.1, metadata={"help": "the beta parameter for DPO loss"}
+    )
+
+    learning_rate: Optional[float] = field(
+        default=5e-4, metadata={"help": "optimizer learning rate"}
+    )
+    lr_scheduler_type: Optional[str] = field(
+        default="cosine", metadata={"help": "the lr scheduler type"}
+    )
+    warmup_steps: Optional[int] = field(
+        default=100, metadata={"help": "the number of warmup steps"}
+    )
+    weight_decay: Optional[float] = field(
+        default=0.05, metadata={"help": "the weight decay"}
+    )
+    optimizer_type: Optional[str] = field(
+        default="paged_adamw_32bit", metadata={"help": "the optimizer type"}
+    )
+
+    per_device_train_batch_size: Optional[int] = field(
+        default=16, metadata={"help": "train batch size per device"}
+    )
+    per_device_eval_batch_size: Optional[int] = field(
+        default=4, metadata={"help": "eval batch size per device"}
+    )
+    gradient_accumulation_steps: Optional[int] = field(
+        default=1, metadata={"help": "the number of gradient accumulation steps"}
+    )
+    gradient_checkpointing: Optional[bool] = field(
+        default=True, metadata={"help": "whether to use gradient checkpointing"}
+    )
+
+    gradient_checkpointing_use_reentrant: Optional[bool] = field(
+        default=False,
+        metadata={"help": "whether to use reentrant for gradient checkpointing"},
+    )
+
+    max_prompt_length: Optional[int] = field(
+        default=512, metadata={"help": "the maximum prompt length"}
+    )
+    max_length: Optional[int] = field(
+        default=1024, metadata={"help": "the maximum sequence length"}
+    )
+    max_steps: Optional[int] = field(
+        default=1000, metadata={"help": "max number of training steps"}
+    )
+    logging_steps: Optional[int] = field(
+        default=10, metadata={"help": "the logging frequency"}
+    )
+    save_steps: Optional[int] = field(
+        default=100, metadata={"help": "the saving frequency"}
+    )
+    eval_steps: Optional[int] = field(
+        default=100, metadata={"help": "the evaluation frequency"}
+    )
+
+    output_dir: Optional[str] = field(
+        default="./results", metadata={"help": "the output directory"}
+    )
+    log_freq: Optional[int] = field(
+        default=1, metadata={"help": "the logging frequency"}
+    )
+    load_in_4bit: Optional[bool] = field(
+        default=True, metadata={"help": "whether to load the model in 4bit"}
+    )
+
+    # debug argument for distributed training
+    ignore_bias_buffers: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "fix for DDP issues with LM bias/mask buffers - invalid scalar type,`inplace operation. See"
+            "https://github.com/huggingface/transformers/issues/22482#issuecomment-1595790992"
+        },
+    )
+
+
+def run_training(script_args: ScriptArguments):
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+    log_level = "info"
+    logger.setLevel(log_level)
+    datasets.utils.logging.set_verbosity(log_level)
+    transformers.utils.logging.set_verbosity(log_level)
+    transformers.utils.logging.enable_default_handler()
+    transformers.utils.logging.enable_explicit_format()
+
+    mlflow.set_experiment(script_args.mlflow_experiment_path)
+
+    training_args = DPOConfig(
+        beta=0.1,
+    )
+
+    dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
+    dataset_dict = dataset.train_test_split(0.01)
+
+    # set seed before initializing value head for deterministic eval
+    set_seed(45)
+
+    # Now let's build the model, the reference model, and the tokenizer. We first load the model
+    # in bfloat16 to save memory using `transformers`.
+    model = AutoModelForCausalLM.from_pretrained(
+        script_args.model_name,
+        low_cpu_mem_usage=True,
+        torch_dtype=torch.bfloat16,
+        trust_remote_code=True,
+        use_auth_token=True,
+    )
+
+    # We make sure to use `Adam` optimizer on the model parameters that require gradients.
+    optimizer = Adam(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=script_args.learning_rate,
+    )
+    # optimizer = Lion(
+    #     filter(lambda p: p.requires_grad, model.parameters()),
+    #     lr=config.learning_rate,
+    # )
+    lr_scheduler = None  # CosineAnnealingLR(optimizer, T_max=300)
+    # torch.optim.lr_scheduler.CosineAnnealingWarmRestarts CosineAnnealingLR(optimizer, T_max=1)
+    # ExponentialLR(optimizer, gamma=0.9)
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        script_args.model_name, padding_side="left"
+    )
+    tokenizer.pad_token = tokenizer.eos_token
+
+    # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
+    dpo_trainer = DPOTrainer(
+        model,
+        model_ref=None,
+        args=training_args,
+        train_dataset=dataset_dict["train"],
+        eval_dataset=dataset_dict["test"],
+        tokenizer=tokenizer,
+    )
+
+    with mlflow.start_run() as run:
+        dpo_trainer.train()
+        dpo_trainer.save_model("/tmp")
+
+        save_checkpoint(dpo_trainer, run, "final")
+
+
+def save_checkpoint(dpo_trainer, run, step):
+    shutil.rmtree(conf.LOCAL_MODEL_PATH, ignore_errors=True)
+    os.makedirs(conf.LOCAL_MODEL_PATH, exist_ok=True)
+    dpo_trainer.model.save_pretrained(conf.LOCAL_MODEL_PATH)
+    mlflow.log_artifacts(
+        conf.LOCAL_MODEL_PATH,
+        f"checkpoint_{step}",
+        run_id=run.info.run_id,
+    )
+
+
+if __name__ == "__main__":
+    os.environ["MLFLOW_TRACKING_URI"] = "databricks"
+    parser = HfArgumentParser(ScriptArguments)
+    script_args = parser.parse_args_into_dataclasses()[0]
+    if script_args.train:
+        run_training(script_args)
+    if script_args.download_dataset:
+        download_dataset(script_args.dataset_path, conf.LOCAL_DATASET_PATH)

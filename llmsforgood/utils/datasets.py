@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
+from typing import Dict, List
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import DatabricksError
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset, load_from_disk, Dataset
 from transformers import AutoTokenizer
 
 
@@ -41,7 +42,9 @@ def prompt_generate(text):
     Question: {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
 
-def build_dataset(dataset_path: str, model_name: str, sample_size: int = -1):
+def build_dataset_with_prompts(
+    dataset_path: str, model_name: str, sample_size: int = -1
+) -> Dataset:
     """
     Build dataset for training. This builds the dataset from `load_dataset`, one should
     customize this function to train the model on its own dataset.
@@ -73,3 +76,39 @@ def build_dataset(dataset_path: str, model_name: str, sample_size: int = -1):
     ds.set_format(type="torch")
 
     return ds
+
+
+def build_question_answer_dataset(
+    path: str,
+    num_proc=24,
+) -> Dataset:
+    """Load the stack-exchange-paired dataset from Hugging Face and convert it to the necessary format.
+
+    The dataset is converted to a dictionary with the following structure:
+    {
+        'prompt': List[str],
+        'chosen': List[str],
+        'rejected': List[str],
+    }
+
+    Prompts are structured as follows:
+      "Question: " + <prompt> + "\n\nAnswer: "
+    """
+    dataset = load_dataset(path)
+    original_columns = dataset.column_names
+
+    def return_prompt_and_responses(rec) -> Dict[str, List[str]]:
+        return {
+            "prompt": [
+                prompt_generate(rec["question"]),
+            ],
+            "chosen": rec["good_answer"],
+            "rejected": rec["bad_answer"],
+        }
+
+    return dataset.map(
+        return_prompt_and_responses,
+        batched=True,
+        num_proc=num_proc,
+        remove_columns=original_columns,
+    )
