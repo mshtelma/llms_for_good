@@ -72,9 +72,11 @@ class ScriptArguments:
     """
 
     model_run_id: Optional[str] = field(
+        default=None,
         metadata={"help": "Run ID containing checkpoint to tune using DPO"},
     )
     model_checkpoint: Optional[str] = field(
+        default=None,
         metadata={"help": "Artifact path for the checkpoint to tune using DPO"},
     )
 
