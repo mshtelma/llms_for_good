@@ -70,7 +70,7 @@ def run_eval(
         run_name = f"Evaluation {mct_run_name} {artifact_path} using {eval_endpoint}"
     else:
         run_name = f"Evaluation {model_path}  using {eval_endpoint}"
-    model = load_model(model_path)
+    model = load_model(model_path, training=False)
     tokenizer = load_tokenizer(model_path)
     download_file(eval_prompts_path, "eval_prompts", WorkspaceClient())
     eval_prompts_df = pd.read_csv("eval_prompts")
