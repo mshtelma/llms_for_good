@@ -101,7 +101,7 @@ class ScriptArguments:
     )
 
     learning_rate: Optional[float] = field(
-        default=5e-4, metadata={"help": "optimizer learning rate"}
+        default=5e-6, metadata={"help": "optimizer learning rate"}
     )
     lr_scheduler_type: Optional[str] = field(
         default="cosine", metadata={"help": "the lr scheduler type"}
@@ -117,10 +117,10 @@ class ScriptArguments:
     )
 
     per_device_train_batch_size: Optional[int] = field(
-        default=4, metadata={"help": "train batch size per device"}
+        default=2, metadata={"help": "train batch size per device"}
     )
     per_device_eval_batch_size: Optional[int] = field(
-        default=4, metadata={"help": "eval batch size per device"}
+        default=1, metadata={"help": "eval batch size per device"}
     )
     gradient_accumulation_steps: Optional[int] = field(
         default=1, metadata={"help": "the number of gradient accumulation steps"}
@@ -205,6 +205,8 @@ def run_training(script_args: ScriptArguments):
         gradient_checkpointing_kwargs=dict(
             use_reentrant=script_args.gradient_checkpointing_use_reentrant
         ),
+        max_length=script_args.max_length,
+        max_prompt_length=script_args.max_prompt_length
     )
 
     
