@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 import sys
-from dataclasses import field
+from dataclasses import field, dataclass
 from typing import Optional
 
 import datasets
@@ -70,6 +70,30 @@ class ScriptArguments:
     """
     The arguments for the DPO training script.
     """
+
+    model_run_id: Optional[str] = field(
+        metadata={"help": "Run ID containing checkpoint to tune using DPO"},
+    )
+    model_checkpoint: Optional[str] = field(
+        metadata={"help": "Artifact path for the checkpoint to tune using DPO"},
+    )
+
+    train: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Run training."},
+    )
+    download_dataset: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Download dataset."},
+    )
+    dataset_path: Optional[str] = field(
+        default="/Volumes/msh/rlaif/data/hf_train_dataset",
+        metadata={"help": "the path to the training dataset"},
+    )
+    mlflow_experiment_path: Optional[str] = field(
+        default="/Shared/llm4good_trl",
+        metadata={"help": "MLflow Experiment path"},
+    )
 
     # data parameters
     beta: Optional[float] = field(
@@ -150,55 +174,55 @@ class ScriptArguments:
 
 
 def run_training(script_args: ScriptArguments):
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
-    log_level = "info"
-    logger.setLevel(log_level)
-    datasets.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.enable_default_handler()
-    transformers.utils.logging.enable_explicit_format()
-
     mlflow.set_experiment(script_args.mlflow_experiment_path)
-
-    training_args = DPOConfig(
-        beta=0.1,
-    )
 
     dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
     dataset_dict = dataset.train_test_split(0.01)
 
+    model_path = mlflow.artifacts.download_artifacts(
+        run_id=script_args.model_run_id, artifact_path=script_args.model_checkpoint
+    )
+
+
+    dpo_config = DPOConfig(
+        per_device_train_batch_size=script_args.per_device_train_batch_size,
+        per_device_eval_batch_size=script_args.per_device_eval_batch_size,
+        max_steps=script_args.max_steps,
+        logging_steps=script_args.logging_steps,
+        save_steps=script_args.save_steps,
+        gradient_accumulation_steps=script_args.gradient_accumulation_steps,
+        gradient_checkpointing=script_args.gradient_checkpointing,
+        learning_rate=script_args.learning_rate,
+        eval_strategy="steps",
+        eval_steps=script_args.eval_steps,
+        output_dir=script_args.output_dir,
+        lr_scheduler_type=script_args.lr_scheduler_type,
+        warmup_steps=script_args.warmup_steps,
+        optim=script_args.optimizer_type,
+        bf16=True,
+        remove_unused_columns=False,
+        run_name="dpo_llama2",
+        gradient_checkpointing_kwargs=dict(
+            use_reentrant=script_args.gradient_checkpointing_use_reentrant
+        ),
+    )
+
+    
+
     # set seed before initializing value head for deterministic eval
     set_seed(45)
 
-    # Now let's build the model, the reference model, and the tokenizer. We first load the model
-    # in bfloat16 to save memory using `transformers`.
+  
     model = AutoModelForCausalLM.from_pretrained(
-        script_args.model_name,
+        model_path,
         low_cpu_mem_usage=True,
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
         use_auth_token=True,
     )
 
-    # We make sure to use `Adam` optimizer on the model parameters that require gradients.
-    optimizer = Adam(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=script_args.learning_rate,
-    )
-    # optimizer = Lion(
-    #     filter(lambda p: p.requires_grad, model.parameters()),
-    #     lr=config.learning_rate,
-    # )
-    lr_scheduler = None  # CosineAnnealingLR(optimizer, T_max=300)
-    # torch.optim.lr_scheduler.CosineAnnealingWarmRestarts CosineAnnealingLR(optimizer, T_max=1)
-    # ExponentialLR(optimizer, gamma=0.9)
-
     tokenizer = AutoTokenizer.from_pretrained(
-        script_args.model_name, padding_side="left"
+        model_path, padding_side="left"
     )
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -206,7 +230,7 @@ def run_training(script_args: ScriptArguments):
     dpo_trainer = DPOTrainer(
         model,
         model_ref=None,
-        args=training_args,
+        args=dpo_config,
         train_dataset=dataset_dict["train"],
         eval_dataset=dataset_dict["test"],
         tokenizer=tokenizer,

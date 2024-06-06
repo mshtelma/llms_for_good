@@ -94,7 +94,7 @@ def build_question_answer_dataset(
     Prompts are structured as follows:
       "Question: " + <prompt> + "\n\nAnswer: "
     """
-    dataset = load_dataset(path)
+    dataset = load_from_disk(path)
     original_columns = dataset.column_names
 
     def return_prompt_and_responses(rec) -> Dict[str, List[str]]:
@@ -108,7 +108,5 @@ def build_question_answer_dataset(
 
     return dataset.map(
         return_prompt_and_responses,
-        batched=True,
-        num_proc=num_proc,
         remove_columns=original_columns,
     )

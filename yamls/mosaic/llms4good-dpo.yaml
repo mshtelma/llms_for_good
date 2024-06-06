@@ -20,5 +20,5 @@ integrations:
 command: |
   cd /workspace/llm4good
   pip install -r requirements.txt
-  python llmsforgood/train.py --download_dataset --dataset_path /Volumes/msh/rlaif/data/training/ift/hf_dataset/
+  python llmsforgood/train_dpo.py --download_dataset --dataset_path /Volumes/msh/rlaif/data/training/ift/hf_dataset/
   accelerate launch --config_file yamls/accelerate/zero2.yaml llmsforgood/train_dpo.py --train 
