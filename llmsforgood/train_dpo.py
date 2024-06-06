@@ -86,6 +86,10 @@ class ScriptArguments:
         default=False,
         metadata={"help": "Download dataset."},
     )
+    download_model: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Download model from MLflow."},
+    )
     dataset_path: Optional[str] = field(
         default="/Volumes/msh/rlaif/data/hf_train_dataset",
         metadata={"help": "the path to the training dataset"},
@@ -179,11 +183,6 @@ def run_training(script_args: ScriptArguments):
     dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
     dataset_dict = dataset.train_test_split(0.01)
 
-    model_path = mlflow.artifacts.download_artifacts(
-        run_id=script_args.model_run_id, artifact_path=script_args.model_checkpoint
-    )
-
-
     dpo_config = DPOConfig(
         per_device_train_batch_size=script_args.per_device_train_batch_size,
         per_device_eval_batch_size=script_args.per_device_eval_batch_size,
@@ -206,17 +205,14 @@ def run_training(script_args: ScriptArguments):
             use_reentrant=script_args.gradient_checkpointing_use_reentrant
         ),
         max_length=script_args.max_length,
-        max_prompt_length=script_args.max_prompt_length
+        max_prompt_length=script_args.max_prompt_length,
     )
-
-    
 
     # set seed before initializing value head for deterministic eval
     set_seed(45)
 
-  
     model = AutoModelForCausalLM.from_pretrained(
-        model_path,
+        conf.LOCAL_MODEL_PATH,
         low_cpu_mem_usage=True,
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
@@ -224,7 +220,7 @@ def run_training(script_args: ScriptArguments):
     )
 
     tokenizer = AutoTokenizer.from_pretrained(
-        model_path, padding_side="left"
+        conf.LOCAL_MODEL_PATH, padding_side="left"
     )
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -263,3 +259,10 @@ if __name__ == "__main__":
         run_training(script_args)
     if script_args.download_dataset:
         download_dataset(script_args.dataset_path, conf.LOCAL_DATASET_PATH)
+    if script_args.download_model:
+        mlflow.set_experiment(script_args.mlflow_experiment_path)
+        model_path = mlflow.artifacts.download_artifacts(
+            run_id=script_args.model_run_id,
+            artifact_path=script_args.model_checkpoint,
+            dst_path=conf.LOCAL_MODEL_PATH,
+        )
