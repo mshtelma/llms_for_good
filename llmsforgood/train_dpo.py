@@ -179,20 +179,12 @@ def run_training(script_args: ScriptArguments):
     dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
     dataset_dict = dataset.train_test_split(0.01)
 
-    print(script_args.model_run_id)
-    accelerator = Accelerator()
-    print("Accelerator was created")
-
-    if accelerator.is_local_main_process:
-        print("inside main process")
-        model_path = mlflow.artifacts.download_artifacts(
-            run_id=script_args.model_run_id,
-            artifact_path=script_args.model_checkpoint,
-            dst_path=conf.LOCAL_MODEL_PATH,
-        )
-        print(f"Model path: {model_path}")
-    model_path = os.path.join(conf.LOCAL_MODEL_PATH, script_args.model_checkpoint)
-    print(model_path)
+    model_path = mlflow.artifacts.download_artifacts(
+        run_id=script_args.model_run_id,
+        artifact_path=script_args.model_checkpoint,
+        dst_path=conf.LOCAL_MODEL_PATH,
+    )
+    print(f"Model path: {model_path}")
 
     dpo_config = DPOConfig(
         per_device_train_batch_size=script_args.per_device_train_batch_size,
