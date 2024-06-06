@@ -25,8 +25,10 @@ def load_model(path: str, training: bool = True) -> PreTrainedModel:
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
         use_auth_token=True,
-        device_map="auto" if training else None,
-    ).to("cuda")
+        device_map="auto" if not training else None,
+    )
+    if training:
+        model = model.to("cuda")
 
     if peft_config:
         model = PeftModel.from_pretrained(model, path)
