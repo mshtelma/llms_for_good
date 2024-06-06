@@ -8,6 +8,9 @@ from typing import Optional
 import datasets
 import numpy as np
 import transformers
+from accelerate import Accelerator
+from accelerate.utils import broadcast, broadcast_object_list
+
 from peft import LoraConfig
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
@@ -185,6 +188,17 @@ def run_training(script_args: ScriptArguments):
     dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
     dataset_dict = dataset.train_test_split(0.01)
 
+    accelerator = Accelerator()
+    model_path = ""
+    if accelerator.is_local_main_process:
+        model_path = mlflow.artifacts.download_artifacts(
+            run_id=script_args.model_run_id,
+            artifact_path=script_args.model_checkpoint,
+            dst_path=conf.LOCAL_MODEL_PATH,
+        )
+        model_path = broadcast_object_list([model_path])[0]
+    print(model_path)
+
     dpo_config = DPOConfig(
         per_device_train_batch_size=script_args.per_device_train_batch_size,
         per_device_eval_batch_size=script_args.per_device_eval_batch_size,
@@ -214,16 +228,14 @@ def run_training(script_args: ScriptArguments):
     set_seed(45)
 
     model = AutoModelForCausalLM.from_pretrained(
-        conf.LOCAL_MODEL_PATH,
+        model_path,
         low_cpu_mem_usage=True,
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
         use_auth_token=True,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        conf.LOCAL_MODEL_PATH, padding_side="left"
-    )
+    tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side="left")
     tokenizer.pad_token = tokenizer.eos_token
 
     # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
@@ -243,11 +255,12 @@ def run_training(script_args: ScriptArguments):
 
 
 def save_checkpoint(dpo_trainer, run, step):
-    shutil.rmtree(conf.LOCAL_MODEL_PATH, ignore_errors=True)
-    os.makedirs(conf.LOCAL_MODEL_PATH, exist_ok=True)
-    dpo_trainer.model.save_pretrained(conf.LOCAL_MODEL_PATH)
+    checkpoint_path = os.path.join(conf.LOCAL_MODEL_PATH, "checkpoint")
+    shutil.rmtree(checkpoint_path, ignore_errors=True)
+    os.makedirs(checkpoint_path, exist_ok=True)
+    dpo_trainer.model.save_pretrained(checkpoint_path)
     mlflow.log_artifacts(
-        conf.LOCAL_MODEL_PATH,
+        checkpoint_path,
         f"checkpoint_{step}",
         run_id=run.info.run_id,
     )
@@ -261,10 +274,3 @@ if __name__ == "__main__":
         run_training(script_args)
     if script_args.download_dataset:
         download_dataset(script_args.dataset_path, conf.LOCAL_DATASET_PATH)
-    if script_args.download_model:
-        mlflow.set_experiment(script_args.mlflow_experiment_path)
-        model_path = mlflow.artifacts.download_artifacts(
-            run_id=script_args.model_run_id,
-            artifact_path=script_args.model_checkpoint,
-            dst_path=conf.LOCAL_MODEL_PATH,
-        )
