@@ -196,6 +196,7 @@ def run_training(script_args: ScriptArguments):
             artifact_path=script_args.model_checkpoint,
             dst_path=conf.LOCAL_MODEL_PATH,
         )
+        print(f"Model path: {model_path}")
         model_path = broadcast_object_list([model_path])[0]
     print(model_path)
 
