@@ -182,7 +182,6 @@ def run_training(script_args: ScriptArguments):
     model_path = mlflow.artifacts.download_artifacts(
         run_id=script_args.model_run_id,
         artifact_path=script_args.model_checkpoint,
-        dst_path=conf.LOCAL_MODEL_PATH,
     )
     print(f"Model path: {model_path}")
 
