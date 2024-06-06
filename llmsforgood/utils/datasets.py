@@ -99,9 +99,7 @@ def build_question_answer_dataset(
 
     def return_prompt_and_responses(rec) -> Dict[str, List[str]]:
         return {
-            "prompt": [
-                prompt_generate(rec["question"]),
-            ],
+            "prompt": prompt_generate(rec["question"]),
             "chosen": rec["good_answer"],
             "rejected": rec["bad_answer"],
         }

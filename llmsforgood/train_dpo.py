@@ -117,7 +117,7 @@ class ScriptArguments:
     )
 
     per_device_train_batch_size: Optional[int] = field(
-        default=16, metadata={"help": "train batch size per device"}
+        default=4, metadata={"help": "train batch size per device"}
     )
     per_device_eval_batch_size: Optional[int] = field(
         default=4, metadata={"help": "eval batch size per device"}
@@ -229,7 +229,6 @@ def run_training(script_args: ScriptArguments):
     # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
     dpo_trainer = DPOTrainer(
         model,
-        model_ref=None,
         args=dpo_config,
         train_dataset=dataset_dict["train"],
         eval_dataset=dataset_dict["test"],
