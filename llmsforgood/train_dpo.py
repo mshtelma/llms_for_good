@@ -189,7 +189,6 @@ def run_training(script_args: ScriptArguments):
     dataset_dict = dataset.train_test_split(0.01)
 
     accelerator = Accelerator()
-    model_path = ""
     if accelerator.is_local_main_process:
         model_path = mlflow.artifacts.download_artifacts(
             run_id=script_args.model_run_id,
@@ -197,7 +196,7 @@ def run_training(script_args: ScriptArguments):
             dst_path=conf.LOCAL_MODEL_PATH,
         )
         print(f"Model path: {model_path}")
-        model_path = broadcast_object_list([model_path])[0]
+    model_path = os.path.join(conf.LOCAL_MODEL_PATH, script_args.model_checkpoint)
     print(model_path)
 
     dpo_config = DPOConfig(
