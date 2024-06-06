@@ -73,7 +73,7 @@ def run_eval(
     model = load_model(model_path)
     tokenizer = load_tokenizer(model_path)
     download_file(eval_prompts_path, "eval_prompts", WorkspaceClient())
-    eval_prompts_df = pd.read_csv(eval_prompts_path)
+    eval_prompts_df = pd.read_csv("eval_prompts")
     eval_prompts_df["generated_answer"] = generate_for_eval(
         model, tokenizer, eval_prompts_df["prompt"].to_list()
     )
