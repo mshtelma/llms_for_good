@@ -1,3 +1,4 @@
+import os
 from typing import List, Dict, Any
 
 import mlflow
@@ -59,6 +60,7 @@ def run_eval(
     run_id: str = None,
     artifact_path: str = None,
 ):
+    mlflow.set_experiment("/Shared/llm4good_trl")
     if run_id and artifact_path:
         model_path = mlflow.artifacts.download_artifacts(
             run_id=run_id, artifact_path=artifact_path
@@ -120,7 +122,7 @@ def run_set_of_evals(
 
 
 if __name__ == "__main__":
-    from llmsforgood.eval import run_eval, run_set_of_evals
+    os.environ["MLFLOW_TRACKING_URI"] = "databricks"
 
     runs = [
         {
