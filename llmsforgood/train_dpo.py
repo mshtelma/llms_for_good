@@ -255,7 +255,8 @@ if __name__ == "__main__":
             run_id=script_args.model_run_id,
             artifact_path=script_args.model_checkpoint,
         )
-        os.makedirs(conf.LOCAL_MODEL_PATH, exist_ok=True)
+        # os.makedirs(conf.LOCAL_MODEL_PATH, exist_ok=True)
+        shutil.rmtree(conf.LOCAL_MODEL_PATH, ignore_errors=True)
         shutil.copytree(model_path, conf.LOCAL_MODEL_PATH)
         print(os.listdir(conf.LOCAL_MODEL_PATH))
     if script_args.download_dataset:
