@@ -233,11 +233,20 @@ def save_checkpoint(dpo_trainer, run, step):
     shutil.rmtree(checkpoint_path, ignore_errors=True)
     os.makedirs(checkpoint_path, exist_ok=True)
     dpo_trainer.model.save_pretrained(checkpoint_path)
-    mlflow.log_artifacts(
-        checkpoint_path,
-        f"checkpoint_{step}",
-        run_id=run.info.run_id,
-    )
+    print(os.listdir(checkpoint_path))
+    for _ in range(10):
+        saved = False
+        try:
+            mlflow.log_artifacts(
+                checkpoint_path,
+                f"checkpoint_{step}",
+                run_id=run.info.run_id,
+            )
+            saved = True
+        except Exception as e:
+            print(e)
+        if saved:
+            break
 
 
 if __name__ == "__main__":
