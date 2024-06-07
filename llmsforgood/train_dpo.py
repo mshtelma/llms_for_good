@@ -175,7 +175,6 @@ def run_training(script_args: ScriptArguments):
         gradient_accumulation_steps=script_args.gradient_accumulation_steps,
         gradient_checkpointing=script_args.gradient_checkpointing,
         learning_rate=script_args.learning_rate,
-        eval_strategy="steps",
         eval_steps=script_args.eval_steps,
         output_dir=script_args.output_dir,
         lr_scheduler_type=script_args.lr_scheduler_type,
@@ -243,9 +242,6 @@ def get_local_ip():
 
 
 if __name__ == "__main__":
-    import transformers
-
-    print(transformers.__version__)
     os.environ["MLFLOW_TRACKING_URI"] = "databricks"
     # os.environ["HF_HOME"] = "/tmp/hf"
     # os.environ["HF_DATASETS_CACHE"] = "/tmp/hf"
