@@ -94,7 +94,7 @@ def build_question_answer_dataset(
     Prompts are structured as follows:
       "Question: " + <prompt> + "\n\nAnswer: "
     """
-    dataset = load_from_disk(path).shuffle(seed=42)
+    dataset = load_from_disk(path).shuffle(seed=45)
     original_columns = dataset.column_names
     if sample_size > 0:
         dataset = dataset.select(range(sample_size))
