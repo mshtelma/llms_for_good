@@ -8,7 +8,9 @@ bitsandbytes==0.43.1
 tyro>=0.5.7
 trl==0.9.4
 databricks-sdk==0.27.1
+langchain
+langchain-community
 mlflow==2.13.0
 deepspeed==0.14.2
 databricks-sql-connector
-#mosaicml-streaming
+mosaicml-streaming
