@@ -216,17 +216,18 @@ def run_training(script_args: ScriptArguments):
         eval_dataset=dataset_dict["test"],
         tokenizer=tokenizer,
     )
+    if dpo_trainer.accelerator.is_main_process:
+        run = mlflow.start_run()
     dpo_trainer.train()
     if dpo_trainer.accelerator.is_main_process:
-        with mlflow.start_run() as run:
-            save_checkpoint(dpo_trainer, run, "final")
+        save_checkpoint(dpo_trainer, run, "final")
 
 
 def save_checkpoint(dpo_trainer, run, step):
     shutil.rmtree(conf.CHECKPOINT_MODEL_PATH, ignore_errors=True)
     os.makedirs(conf.CHECKPOINT_MODEL_PATH, exist_ok=True)
     dpo_trainer.save_model(conf.CHECKPOINT_MODEL_PATH)
-    # dpo_trainer.model.save_pretrained(checkpoint_path)
+    dpo_trainer.model.save_pretrained(conf.CHECKPOINT_MODEL_PATH)
     print(os.listdir(conf.CHECKPOINT_MODEL_PATH))
     mlflow.log_artifacts(
         conf.CHECKPOINT_MODEL_PATH,
