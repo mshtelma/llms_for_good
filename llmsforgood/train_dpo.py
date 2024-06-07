@@ -167,12 +167,6 @@ def run_training(script_args: ScriptArguments):
     )
     dataset_dict = dataset.train_test_split(0.01)
 
-    # model_path = mlflow.artifacts.download_artifacts(
-    #     run_id=script_args.model_run_id,
-    #     artifact_path=script_args.model_checkpoint,
-    # )
-    # print(f"Model path: {model_path}")
-
     dpo_config = DPOConfig(
         per_device_train_batch_size=script_args.per_device_train_batch_size,
         per_device_eval_batch_size=script_args.per_device_eval_batch_size,
@@ -202,14 +196,6 @@ def run_training(script_args: ScriptArguments):
     # set seed before initializing value head for deterministic eval
     set_seed(45)
 
-    model = AutoModelForCausalLM.from_pretrained(
-        conf.LOCAL_MODEL_PATH,
-        low_cpu_mem_usage=True,
-        torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
-        use_auth_token=True,
-    )
-
     tokenizer = AutoTokenizer.from_pretrained(
         conf.LOCAL_MODEL_PATH, padding_side="left"
     )
@@ -217,7 +203,7 @@ def run_training(script_args: ScriptArguments):
 
     # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
     dpo_trainer = DPOTrainer(
-        model,
+        conf.LOCAL_MODEL_PATH,
         args=dpo_config,
         train_dataset=dataset_dict["train"],
         eval_dataset=dataset_dict["test"],
@@ -253,8 +239,8 @@ if __name__ == "__main__":
     # os.environ["HF_HOME"] = "/tmp/hf"
     # os.environ["HF_DATASETS_CACHE"] = "/tmp/hf"
     # os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf"
-    # os.environ["NCCL_P2P_DISABLE"] = "1"
-    # os.environ["NCCL_DEBUG"] = "INFO"
+    os.environ["NCCL_P2P_DISABLE"] = "1"
+    os.environ["NCCL_DEBUG"] = "INFO"
     # os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
     # os.environ["HOST_IP"] = get_local_ip()
     parser = HfArgumentParser(ScriptArguments)
