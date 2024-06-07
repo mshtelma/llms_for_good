@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 from dataclasses import field, dataclass
+import socket
 from typing import Optional
 
 import conf
@@ -241,11 +242,21 @@ def save_checkpoint(dpo_trainer, run, step):
     )
 
 
+def get_local_ip():
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    return local_ip
+
+
 if __name__ == "__main__":
     os.environ["MLFLOW_TRACKING_URI"] = "databricks"
+    os.environ["HF_HOME"] = "/tmp/hf"
+    os.environ["HF_DATASETS_CACHE"] = "/tmp/hf"
+    os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf"
     os.environ["NCCL_P2P_DISABLE"] = "1"
     os.environ["NCCL_DEBUG"] = "INFO"
     os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
+    os.environ["HOST_IP"] = get_local_ip()
     parser = HfArgumentParser(ScriptArguments)
     script_args = parser.parse_args_into_dataclasses()[0]
     if script_args.train:
