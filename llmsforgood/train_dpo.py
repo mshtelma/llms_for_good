@@ -60,6 +60,10 @@ class ScriptArguments:
         default=None,
         metadata={"help": "Artifact path for the checkpoint to tune using DPO"},
     )
+    model_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "HuggingFace ID or path to the HuggingFace model"},
+    )
 
     train: Optional[bool] = field(
         default=False,
@@ -195,17 +199,20 @@ def run_training(script_args: ScriptArguments):
     # set seed before initializing value head for deterministic eval
     set_seed(45)
 
+    if script_args.model_path:
+        model_path = script_args.model_path
+    else:
+        model_path = conf.LOCAL_MODEL_PATH
+
     model = AutoModelForCausalLM.from_pretrained(
-        conf.LOCAL_MODEL_PATH,
+        model_path,
         low_cpu_mem_usage=True,
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
         use_auth_token=True,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        conf.LOCAL_MODEL_PATH, padding_side="left"
-    )
+    tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side="left")
     tokenizer.pad_token = tokenizer.eos_token
 
     # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
@@ -244,14 +251,6 @@ def get_local_ip():
 
 if __name__ == "__main__":
     os.environ["MLFLOW_TRACKING_URI"] = "databricks"
-    # os.environ["HF_HOME"] = "/tmp/hf"
-    # os.environ["HF_DATASETS_CACHE"] = "/tmp/hf"
-    # os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf"
-    # os.environ["NCCL_P2P_DISABLE"] = "1"
-    # os.environ["NCCL_DEBUG"] = "INFO"
-    # os.environ["NCCL_P2P_LEVEL"] = "NVL"
-    # os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
-    # os.environ["HOST_IP"] = get_local_ip()
     parser = HfArgumentParser(ScriptArguments)
     script_args = parser.parse_args_into_dataclasses()[0]
     if script_args.train:
@@ -261,7 +260,6 @@ if __name__ == "__main__":
             run_id=script_args.model_run_id,
             artifact_path=script_args.model_checkpoint,
         )
-        # os.makedirs(conf.LOCAL_MODEL_PATH, exist_ok=True)
         shutil.rmtree(conf.LOCAL_MODEL_PATH, ignore_errors=True)
         shutil.copytree(model_path, conf.LOCAL_MODEL_PATH)
         print(os.listdir(conf.LOCAL_MODEL_PATH))
