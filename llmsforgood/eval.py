@@ -133,30 +133,46 @@ def run_set_of_evals(
 
 if __name__ == "__main__":
     os.environ["MLFLOW_TRACKING_URI"] = "databricks"
-
     runs = [
         {
             "model_name": "meta-llama/Meta-Llama-3-8B-Instruct",
         },
         {
-            "run_id": "169e763da5304dd8b27dca178eed1df2",
-            "checkpoints": ["checkpoint_final"],
-        },
-        {
-            "run_id": "1a8468e968994186b06348d866587bc6",
-            "checkpoints": ["checkpoint_final"],
-        },
-        {
-            "run_id": "3184bb381c7d4777b49e9a548b9a07e2",
-            "checkpoints": ["checkpoint_final"],
-        },
-        {
-            "run_id": "3f35ec207b104a5ebcf12e596868f04e",
+            "run_id": "68aeb942192b482fafb76a97312992bd",
             "checkpoints": [
-                "llm4good-llama3-8b-vegi-ift-rsxPas/checkpoints/huggingface/ba66"
+                "llm4good-llama3-8b-vegi-ift-lr107-JTu6do/checkpoints/huggingface/ba66"
+            ],
+        },
+        {
+            "run_id": "fb8649e4ac5042158cefd701464be86e",
+            "checkpoints": [
+                "llm4good-llama3-8b-vegi-ift-lr108-5nQQLM/checkpoints/huggingface/ba66"
             ],
         },
     ]
+    # runs = [
+    #     {
+    #         "model_name": "meta-llama/Meta-Llama-3-8B-Instruct",
+    #     },
+    #     {
+    #         "run_id": "169e763da5304dd8b27dca178eed1df2",
+    #         "checkpoints": ["checkpoint_final"],
+    #     },
+    #     {
+    #         "run_id": "1a8468e968994186b06348d866587bc6",
+    #         "checkpoints": ["checkpoint_final"],
+    #     },
+    #     {
+    #         "run_id": "3184bb381c7d4777b49e9a548b9a07e2",
+    #         "checkpoints": ["checkpoint_final"],
+    #     },
+    #     {
+    #         "run_id": "3f35ec207b104a5ebcf12e596868f04e",
+    #         "checkpoints": [
+    #             "llm4good-llama3-8b-vegi-ift-rsxPas/checkpoints/huggingface/ba66"
+    #         ],
+    #     },
+    # ]
     run_set_of_evals(
         runs,
         "/Shared/llm4good_trl_evaluations_dbrx",
