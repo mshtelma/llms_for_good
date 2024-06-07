@@ -187,8 +187,8 @@ def run_training(script_args: ScriptArguments):
         gradient_checkpointing_kwargs=dict(
             use_reentrant=script_args.gradient_checkpointing_use_reentrant
         ),
-        # max_length=script_args.max_length,
-        # max_prompt_length=script_args.max_prompt_length,
+        max_length=script_args.max_length,
+        max_prompt_length=script_args.max_prompt_length,
         report_to=["mlflow"],
         num_train_epochs=script_args.num_train_epochs,
     )
@@ -239,7 +239,7 @@ if __name__ == "__main__":
     # os.environ["HF_HOME"] = "/tmp/hf"
     # os.environ["HF_DATASETS_CACHE"] = "/tmp/hf"
     # os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf"
-    os.environ["NCCL_P2P_DISABLE"] = "1"
+    # os.environ["NCCL_P2P_DISABLE"] = "1"
     os.environ["NCCL_DEBUG"] = "INFO"
     # os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
     # os.environ["HOST_IP"] = get_local_ip()
