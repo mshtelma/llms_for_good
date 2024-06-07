@@ -106,7 +106,7 @@ class ScriptArguments:
     )
 
     per_device_train_batch_size: Optional[int] = field(
-        default=4, metadata={"help": "train batch size per device"}
+        default=6, metadata={"help": "train batch size per device"}
     )
     per_device_eval_batch_size: Optional[int] = field(
         default=1, metadata={"help": "eval batch size per device"}
@@ -258,6 +258,9 @@ def save_checkpoint(dpo_trainer, run, step):
 
 if __name__ == "__main__":
     os.environ["MLFLOW_TRACKING_URI"] = "databricks"
+    os.environ["NCCL_P2P_DISABLE"] = "1"
+    os.environ["NCCL_DEBUG"] = "INFO"
+    os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
     parser = HfArgumentParser(ScriptArguments)
     script_args = parser.parse_args_into_dataclasses()[0]
     if script_args.train:
