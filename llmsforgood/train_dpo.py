@@ -80,6 +80,9 @@ class ScriptArguments:
         default="/Shared/llm4good_trl",
         metadata={"help": "MLflow Experiment path"},
     )
+    num_train_epochs: float = field(
+        default=3.0, metadata={"help": "Total number of training epochs to perform."}
+    )
 
     # data parameters
     beta: Optional[float] = field(
@@ -162,7 +165,9 @@ class ScriptArguments:
 def run_training(script_args: ScriptArguments):
     mlflow.set_experiment(script_args.mlflow_experiment_path)
     try:
-        dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
+        dataset = build_question_answer_dataset(
+            conf.LOCAL_DATASET_PATH, sample_size=script_args.dataset_sample_size
+        )
         dataset_dict = dataset.train_test_split(0.01)
 
         model_path = mlflow.artifacts.download_artifacts(
@@ -196,6 +201,7 @@ def run_training(script_args: ScriptArguments):
         max_length=script_args.max_length,
         max_prompt_length=script_args.max_prompt_length,
         report_to=["mlflow"],
+        num_train_epochs=script_args.num_train_epochs,
     )
 
     # set seed before initializing value head for deterministic eval
@@ -220,19 +226,20 @@ def run_training(script_args: ScriptArguments):
         eval_dataset=dataset_dict["test"],
         tokenizer=tokenizer,
     )
+    if dpo_trainer.accelerator.is_main_process:
+        with mlflow.start_run() as run:
+            dpo_trainer.train()
+            dpo_trainer.save_model("/tmp")
 
-    with mlflow.start_run() as run:
-        dpo_trainer.train()
-        dpo_trainer.save_model("/tmp")
-
-        save_checkpoint(dpo_trainer, run, "final")
+            save_checkpoint(dpo_trainer, run, "final")
 
 
 def save_checkpoint(dpo_trainer, run, step):
     checkpoint_path = os.path.join(conf.LOCAL_MODEL_PATH, "checkpoint")
     shutil.rmtree(checkpoint_path, ignore_errors=True)
     os.makedirs(checkpoint_path, exist_ok=True)
-    dpo_trainer.model.save_pretrained(checkpoint_path)
+    dpo_trainer.save_model(checkpoint_path)
+    # dpo_trainer.model.save_pretrained(checkpoint_path)
     print(os.listdir(checkpoint_path))
     for _ in range(10):
         saved = False
