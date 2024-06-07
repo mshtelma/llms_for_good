@@ -248,6 +248,7 @@ if __name__ == "__main__":
     # os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf"
     # os.environ["NCCL_P2P_DISABLE"] = "1"
     os.environ["NCCL_DEBUG"] = "INFO"
+    os.environ["NCCL_P2P_LEVEL"] = "NVL"
     # os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
     # os.environ["HOST_IP"] = get_local_ip()
     parser = HfArgumentParser(ScriptArguments)
