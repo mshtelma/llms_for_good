@@ -1,19 +1,13 @@
 import logging
 import os
 import shutil
-import sys
 from dataclasses import field, dataclass
 from typing import Optional
 
-
-from accelerate import Accelerator
-
 import conf
 import mlflow
-import math
 
 import torch
-from torch.optim import Adam
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -21,21 +15,13 @@ from transformers import (
 )
 
 from trl import (
-    AutoModelForCausalLMWithValueHead,
-    DPOTrainer,
-    DPOConfig,
-    create_reference_model,
     set_seed,
 )
 from trl import DPOConfig, DPOTrainer
 
 
-from llmsforgood.utils.inference import run_reward_scoring
-from llmsforgood.utils.lion import Lion
-from llmsforgood.utils.cli import parse_cmd_args, ScriptArguments
 from llmsforgood.utils.datasets import (
     download_dataset,
-    build_dataset_with_prompts,
     build_question_answer_dataset,
 )
 
@@ -175,16 +161,17 @@ class ScriptArguments:
 
 def run_training(script_args: ScriptArguments):
     mlflow.set_experiment(script_args.mlflow_experiment_path)
+    try:
+        dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
+        dataset_dict = dataset.train_test_split(0.01)
 
-    dataset = build_question_answer_dataset(conf.LOCAL_DATASET_PATH)
-    dataset_dict = dataset.train_test_split(0.01)
-
-    model_path = mlflow.artifacts.download_artifacts(
-        run_id=script_args.model_run_id,
-        artifact_path=script_args.model_checkpoint,
-    )
-    print(f"Model path: {model_path}")
-
+        model_path = mlflow.artifacts.download_artifacts(
+            run_id=script_args.model_run_id,
+            artifact_path=script_args.model_checkpoint,
+        )
+        print(f"Model path: {model_path}")
+    except Exception as e:
+        print(e)
     dpo_config = DPOConfig(
         per_device_train_batch_size=script_args.per_device_train_batch_size,
         per_device_eval_batch_size=script_args.per_device_eval_batch_size,
