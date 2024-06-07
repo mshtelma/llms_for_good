@@ -229,8 +229,6 @@ def run_training(script_args: ScriptArguments):
     if dpo_trainer.accelerator.is_main_process:
         with mlflow.start_run() as run:
             dpo_trainer.train()
-            dpo_trainer.save_model("/tmp")
-
             save_checkpoint(dpo_trainer, run, "final")
 
 
