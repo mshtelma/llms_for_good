@@ -216,9 +216,9 @@ def run_training(script_args: ScriptArguments):
         eval_dataset=dataset_dict["test"],
         tokenizer=tokenizer,
     )
+    dpo_trainer.train()
     if dpo_trainer.accelerator.is_main_process:
         with mlflow.start_run() as run:
-            dpo_trainer.train()
             save_checkpoint(dpo_trainer, run, "final")
 
 
@@ -247,8 +247,8 @@ if __name__ == "__main__":
     # os.environ["HF_DATASETS_CACHE"] = "/tmp/hf"
     # os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf"
     # os.environ["NCCL_P2P_DISABLE"] = "1"
-    os.environ["NCCL_DEBUG"] = "INFO"
-    os.environ["NCCL_P2P_LEVEL"] = "NVL"
+    # os.environ["NCCL_DEBUG"] = "INFO"
+    # os.environ["NCCL_P2P_LEVEL"] = "NVL"
     # os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
     # os.environ["HOST_IP"] = get_local_ip()
     parser = HfArgumentParser(ScriptArguments)
