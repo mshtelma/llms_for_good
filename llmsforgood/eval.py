@@ -161,5 +161,5 @@ if __name__ == "__main__":
         runs,
         "/Shared/llm4good_trl_evaluations_dbrx",
         "/Volumes/msh/rlaif/data/prompts_holdout.csv",
-        "databricks-meta-llama-3-70b-instruct",
+        "databricks-dbrx-instruct",
     )
