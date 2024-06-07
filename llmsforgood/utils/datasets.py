@@ -80,7 +80,7 @@ def build_dataset_with_prompts(
 
 def build_question_answer_dataset(
     path: str,
-    num_proc=24,
+    sample_size: int = -1,
 ) -> Dataset:
     """Load the stack-exchange-paired dataset from Hugging Face and convert it to the necessary format.
 
@@ -94,8 +94,10 @@ def build_question_answer_dataset(
     Prompts are structured as follows:
       "Question: " + <prompt> + "\n\nAnswer: "
     """
-    dataset = load_from_disk(path)
+    dataset = load_from_disk(path).shuffle(seed=42)
     original_columns = dataset.column_names
+    if sample_size > 0:
+        dataset = dataset.select(range(sample_size))
 
     def return_prompt_and_responses(rec) -> Dict[str, List[str]]:
         return {

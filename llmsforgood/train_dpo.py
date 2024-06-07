@@ -145,6 +145,9 @@ class ScriptArguments:
     log_freq: Optional[int] = field(
         default=1, metadata={"help": "the logging frequency"}
     )
+    dataset_sample_size: Optional[int] = field(
+        default=-1, metadata={"help": "Downsample dataset for test"}
+    )
 
     # debug argument for distributed training
     ignore_bias_buffers: Optional[bool] = field(
@@ -192,6 +195,7 @@ def run_training(script_args: ScriptArguments):
         ),
         max_length=script_args.max_length,
         max_prompt_length=script_args.max_prompt_length,
+        report_to=["mlflow"],
     )
 
     # set seed before initializing value head for deterministic eval
