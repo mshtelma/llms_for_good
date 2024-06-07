@@ -243,6 +243,9 @@ def get_local_ip():
 
 
 if __name__ == "__main__":
+    import transformers
+
+    print(transformers.__version__)
     os.environ["MLFLOW_TRACKING_URI"] = "databricks"
     # os.environ["HF_HOME"] = "/tmp/hf"
     # os.environ["HF_DATASETS_CACHE"] = "/tmp/hf"
