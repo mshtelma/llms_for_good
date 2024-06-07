@@ -196,6 +196,14 @@ def run_training(script_args: ScriptArguments):
     # set seed before initializing value head for deterministic eval
     set_seed(45)
 
+    model = AutoModelForCausalLM.from_pretrained(
+        conf.LOCAL_MODEL_PATH,
+        low_cpu_mem_usage=True,
+        torch_dtype=torch.bfloat16,
+        trust_remote_code=True,
+        use_auth_token=True,
+    )
+
     tokenizer = AutoTokenizer.from_pretrained(
         conf.LOCAL_MODEL_PATH, padding_side="left"
     )
@@ -203,7 +211,7 @@ def run_training(script_args: ScriptArguments):
 
     # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
     dpo_trainer = DPOTrainer(
-        conf.LOCAL_MODEL_PATH,
+        model,
         args=dpo_config,
         train_dataset=dataset_dict["train"],
         eval_dataset=dataset_dict["test"],
