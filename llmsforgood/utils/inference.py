@@ -1,13 +1,10 @@
 import re
 from typing import List
-
 from langchain_community.chat_models import ChatDatabricks
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
     PreTrainedModel,
     PreTrainedTokenizer,
 )

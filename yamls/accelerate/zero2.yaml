@@ -6,7 +6,8 @@ deepspeed_config:
   #offload_optimizer_device: cpu
   #offload_param_device: cpu
   zero3_init_flag: false
-  zero_stage: 3
+  zero_stage: 2
+  stage3_gather_16bit_weights_on_model_save: true
 distributed_type: DEEPSPEED
 downcast_bf16: 'no'
 machine_rank: 0
