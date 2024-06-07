@@ -96,9 +96,11 @@ def run_eval(
             metrics=[veg_metric],
         )
 
-        res_df.to_csv(f"/tmp/{run_name}.csv", index=False)
+        res_df.to_csv(f"/tmp/{run_name.replace(' ','')}.csv", index=False)
         mlflow.log_artifact(
-            f"/tmp/{run_name}.csv", f"{run_name}.csv", run_id=run.info.run_id
+            f"/tmp/{run_name.replace(' ','')}.csv",
+            f"{run_name}.csv",
+            run_id=run.info.run_id,
         )
         return res_df
 
