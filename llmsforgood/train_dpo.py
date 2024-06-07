@@ -103,13 +103,13 @@ class ScriptArguments:
     )
 
     per_device_train_batch_size: Optional[int] = field(
-        default=1, metadata={"help": "train batch size per device"}
+        default=4, metadata={"help": "train batch size per device"}
     )
     per_device_eval_batch_size: Optional[int] = field(
         default=1, metadata={"help": "eval batch size per device"}
     )
     gradient_accumulation_steps: Optional[int] = field(
-        default=4, metadata={"help": "the number of gradient accumulation steps"}
+        default=1, metadata={"help": "the number of gradient accumulation steps"}
     )
     gradient_checkpointing: Optional[bool] = field(
         default=True, metadata={"help": "whether to use gradient checkpointing"}
@@ -144,9 +144,6 @@ class ScriptArguments:
     )
     log_freq: Optional[int] = field(
         default=1, metadata={"help": "the logging frequency"}
-    )
-    load_in_4bit: Optional[bool] = field(
-        default=True, metadata={"help": "whether to load the model in 4bit"}
     )
 
     # debug argument for distributed training
