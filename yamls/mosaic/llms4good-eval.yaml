@@ -20,4 +20,5 @@ integrations:
 command: |
   cd /workspace/llm4good
   pip install -r requirements.txt
+  pip install flash-attn==2.5.9.post1
   python llmsforgood/eval.py
