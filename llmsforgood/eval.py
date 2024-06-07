@@ -110,14 +110,22 @@ def run_set_of_evals(
     eval_endpoint: str,
 ):
     for eval in evals:
-        for checkpoint in eval["checkpoints"]:
-            run_id = eval["run_id"]
+        if eval.get("checkpoints"):
+            for checkpoint in eval["checkpoints"]:
+                run_id = eval["run_id"]
+                run_eval(
+                    target_experiment_path=target_experiment_path,
+                    eval_prompts_path=eval_prompts_path,
+                    eval_endpoint=eval_endpoint,
+                    run_id=run_id,
+                    artifact_path=checkpoint,
+                )
+        elif eval.get("model_name"):
             run_eval(
                 target_experiment_path=target_experiment_path,
                 eval_prompts_path=eval_prompts_path,
                 eval_endpoint=eval_endpoint,
-                run_id=run_id,
-                artifact_path=checkpoint,
+                model_path=eval.get("model_name"),
             )
 
 
@@ -125,6 +133,9 @@ if __name__ == "__main__":
     os.environ["MLFLOW_TRACKING_URI"] = "databricks"
 
     runs = [
+        {
+            "model_name": "meta-llama/Meta-Llama-3-8B-Instruct",
+        },
         {
             "run_id": "169e763da5304dd8b27dca178eed1df2",
             "checkpoints": ["checkpoint_final"],
@@ -137,10 +148,16 @@ if __name__ == "__main__":
             "run_id": "3184bb381c7d4777b49e9a548b9a07e2",
             "checkpoints": ["checkpoint_final"],
         },
+        {
+            "run_id": "3f35ec207b104a5ebcf12e596868f04e",
+            "checkpoints": [
+                "llm4good-llama3-8b-vegi-ift-rsxPas/checkpoints/huggingface/ba66"
+            ],
+        },
     ]
     run_set_of_evals(
         runs,
-        "/Shared/llm4good_trl_evaluations",
+        "/Shared/llm4good_trl_evaluations_dbrx",
         "/Volumes/msh/rlaif/data/prompts_holdout.csv",
-        "abbvie-demo-endpoint",
+        "databricks-meta-llama-3-70b-instruct",
     )

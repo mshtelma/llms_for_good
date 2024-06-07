@@ -129,9 +129,6 @@ class ScriptArguments:
     max_length: Optional[int] = field(
         default=1024, metadata={"help": "the maximum sequence length"}
     )
-    max_steps: Optional[int] = field(
-        default=1000, metadata={"help": "max number of training steps"}
-    )
     logging_steps: Optional[int] = field(
         default=10, metadata={"help": "the logging frequency"}
     )
@@ -164,23 +161,20 @@ class ScriptArguments:
 
 def run_training(script_args: ScriptArguments):
     mlflow.set_experiment(script_args.mlflow_experiment_path)
-    try:
-        dataset = build_question_answer_dataset(
-            conf.LOCAL_DATASET_PATH, sample_size=script_args.dataset_sample_size
-        )
-        dataset_dict = dataset.train_test_split(0.01)
+    dataset = build_question_answer_dataset(
+        conf.LOCAL_DATASET_PATH, sample_size=script_args.dataset_sample_size
+    )
+    dataset_dict = dataset.train_test_split(0.01)
 
-        model_path = mlflow.artifacts.download_artifacts(
-            run_id=script_args.model_run_id,
-            artifact_path=script_args.model_checkpoint,
-        )
-        print(f"Model path: {model_path}")
-    except Exception as e:
-        print(e)
+    # model_path = mlflow.artifacts.download_artifacts(
+    #     run_id=script_args.model_run_id,
+    #     artifact_path=script_args.model_checkpoint,
+    # )
+    # print(f"Model path: {model_path}")
+
     dpo_config = DPOConfig(
         per_device_train_batch_size=script_args.per_device_train_batch_size,
         per_device_eval_batch_size=script_args.per_device_eval_batch_size,
-        max_steps=script_args.max_steps,
         logging_steps=script_args.logging_steps,
         save_steps=script_args.save_steps,
         gradient_accumulation_steps=script_args.gradient_accumulation_steps,
@@ -208,14 +202,16 @@ def run_training(script_args: ScriptArguments):
     set_seed(45)
 
     model = AutoModelForCausalLM.from_pretrained(
-        model_path,
+        conf.LOCAL_MODEL_PATH,
         low_cpu_mem_usage=True,
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
         use_auth_token=True,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side="left")
+    tokenizer = AutoTokenizer.from_pretrained(
+        conf.LOCAL_MODEL_PATH, padding_side="left"
+    )
     tokenizer.pad_token = tokenizer.eos_token
 
     # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
@@ -233,25 +229,16 @@ def run_training(script_args: ScriptArguments):
 
 
 def save_checkpoint(dpo_trainer, run, step):
-    checkpoint_path = os.path.join(conf.LOCAL_MODEL_PATH, "checkpoint")
-    shutil.rmtree(checkpoint_path, ignore_errors=True)
-    os.makedirs(checkpoint_path, exist_ok=True)
-    dpo_trainer.save_model(checkpoint_path)
+    shutil.rmtree(conf.CHECKPOINT_MODEL_PATH, ignore_errors=True)
+    os.makedirs(conf.CHECKPOINT_MODEL_PATH, exist_ok=True)
+    dpo_trainer.save_model(conf.CHECKPOINT_MODEL_PATH)
     # dpo_trainer.model.save_pretrained(checkpoint_path)
-    print(os.listdir(checkpoint_path))
-    for _ in range(10):
-        saved = False
-        try:
-            mlflow.log_artifacts(
-                checkpoint_path,
-                f"checkpoint_{step}",
-                run_id=run.info.run_id,
-            )
-            saved = True
-        except Exception as e:
-            print(e)
-        if saved:
-            break
+    print(os.listdir(conf.CHECKPOINT_MODEL_PATH))
+    mlflow.log_artifacts(
+        conf.CHECKPOINT_MODEL_PATH,
+        f"checkpoint_{step}",
+        run_id=run.info.run_id,
+    )
 
 
 if __name__ == "__main__":
@@ -263,5 +250,13 @@ if __name__ == "__main__":
     script_args = parser.parse_args_into_dataclasses()[0]
     if script_args.train:
         run_training(script_args)
+    if script_args.download_model:
+        model_path = mlflow.artifacts.download_artifacts(
+            run_id=script_args.model_run_id,
+            artifact_path=script_args.model_checkpoint,
+        )
+        os.makedirs(conf.LOCAL_MODEL_PATH, exist_ok=True)
+        shutil.copytree(model_path, conf.LOCAL_MODEL_PATH)
+        print(os.listdir(conf.LOCAL_MODEL_PATH))
     if script_args.download_dataset:
         download_dataset(script_args.dataset_path, conf.LOCAL_DATASET_PATH)
