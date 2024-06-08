@@ -138,33 +138,27 @@ if __name__ == "__main__":
             "model_name": "meta-llama/Meta-Llama-3-8B-Instruct",
         },
         {
+            # DPO
             "run_id": "567bb9f6b6114016b90087dfe0fef6a2",
             "checkpoints": ["checkpoint_final"],
         },
+        {
+            # PPO LoRA
+            "run_id": "169e763da5304dd8b27dca178eed1df2",
+            "checkpoints": ["checkpoint_final"],
+        },
+        {
+            # PPO Full FT best LR 0.000001
+            "run_id": "1a8468e968994186b06348d866587bc6",
+            "checkpoints": ["checkpoint_final"],
+        },
+        {
+            # PPO Full FT LR 0.000001
+            "run_id": "3184bb381c7d4777b49e9a548b9a07e2",
+            "checkpoints": ["checkpoint_final"],
+        },
     ]
-    # runs = [
-    #     {
-    #         "model_name": "meta-llama/Meta-Llama-3-8B-Instruct",
-    #     },
-    #     {
-    #         "run_id": "169e763da5304dd8b27dca178eed1df2",
-    #         "checkpoints": ["checkpoint_final"],
-    #     },
-    #     {
-    #         "run_id": "1a8468e968994186b06348d866587bc6",
-    #         "checkpoints": ["checkpoint_final"],
-    #     },
-    #     {
-    #         "run_id": "3184bb381c7d4777b49e9a548b9a07e2",
-    #         "checkpoints": ["checkpoint_final"],
-    #     },
-    #     {
-    #         "run_id": "3f35ec207b104a5ebcf12e596868f04e",
-    #         "checkpoints": [
-    #             "llm4good-llama3-8b-vegi-ift-rsxPas/checkpoints/huggingface/ba66"
-    #         ],
-    #     },
-    # ]
+
     run_set_of_evals(
         runs,
         "/Shared/llm4good_trl_evaluations_dbrx",

@@ -1,4 +1,4 @@
-name: llm4good-llama3-8b-vegi-ift
+name: llm4good-llama3-8b-vegi-ift-lr108
 cluster: r7z22p1
 compute:
   gpus: 16
@@ -111,7 +111,7 @@ parameters:
     eval_subset_num_batches: -1
 
   optimizer:
-    lr: 1.0e-06
+    lr: 1.0e-08
     name: decoupled_lionw
     betas:
       - 0.9

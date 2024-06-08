@@ -86,6 +86,7 @@ def generate_for_eval(
         "eos_token_id": terminators,
         "pad_token_id": tokenizer.eos_token_id,
         "max_new_tokens": 250,
+        "temperature": 0,
     }
 
     answers = []
