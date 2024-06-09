@@ -159,6 +159,13 @@ if __name__ == "__main__":
         },
     ]
 
+    runs = [
+        {
+            # PPO Full FT LR 2e-6
+            "run_id": "a0d03cd13ceb4fc9a0c5e2c51ecb6c2b",
+            "checkpoints": ["checkpoint_final"],
+        },
+    ]
     run_set_of_evals(
         runs,
         "/Shared/llm4good_trl_evaluations_dbrx",
