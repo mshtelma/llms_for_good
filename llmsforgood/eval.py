@@ -157,24 +157,16 @@ if __name__ == "__main__":
             "run_id": "3184bb381c7d4777b49e9a548b9a07e2",
             "checkpoints": ["checkpoint_final"],
         },
-    ]
-
-    runs = [
         {
             # PPO Full FT LR 2e-6
             "run_id": "a0d03cd13ceb4fc9a0c5e2c51ecb6c2b",
             "checkpoints": ["checkpoint_final"],
         },
     ]
+
     run_set_of_evals(
         runs,
-        "/Shared/llm4good_trl_evaluations_dbrx",
-        "/Volumes/msh/rlaif/data/prompts_holdout.csv",
-        "databricks-dbrx-instruct",
-    )
-    run_set_of_evals(
-        runs,
-        "/Shared/llm4good_trl_evaluations_dbrx",
+        "/Shared/llm4good_trl_evaluations_llama3",
         "/Volumes/msh/rlaif/data/prompts_holdout.csv",
         "databricks-meta-llama-3-70b-instruct",
     )

@@ -20,5 +20,5 @@ integrations:
 command: |
   cd /workspace/llm4good
   pip install -r requirements.txt
-  python llmsforgood/train.py --download_dataset --dataset_path /Volumes/msh/rlaif/data/hf_prompts_med
-  accelerate launch --config_file yamls/accelerate/zero2.yaml llmsforgood/train_ppo.py --train --batch_size 4 --mini_batch_size 4 --learning_rate 1e-6 --number_of_shared_layers 15
+  python llmsforgood/train_ppo.py --download_dataset --dataset_path /Volumes/msh/rlaif/data/hf_prompts_med
+  accelerate launch --config_file yamls/accelerate/zero2.yaml llmsforgood/train_ppo.py --train --batch_size 4 --mini_batch_size 4 --learning_rate 2e-6 
